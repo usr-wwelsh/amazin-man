@@ -66,7 +66,8 @@ local function g(houses, delivered, windows, mailboxes, elapsed)
 end
 
 eq(g(9, 9, 0, 0, fastest), "S", "flawless and fastest is S")
-eq(g(9, 9, 0, 0, par), "B", "flawless but slow is B")
+eq(g(9, 9, 0, 0, par), "A", "flawless but slow is A")
+eq(g(10, 9, 0, 0, (par + fastest) / 2), "A", "one miss at mid speed is A")
 eq(g(9, 9, 1, 0, fastest), "A", "fast with one penalty is A")
 eq(g(24, 24, 0, 1, fastest), "A", "one penalty is never S on long levels")
 eq(g(9, 9, 4, 4, par), "D", "heavy penalties drop the grade")

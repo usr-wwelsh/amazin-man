@@ -36,7 +36,7 @@ function scoring.stars(elapsed, distance, topSpeed)
 end
 
 function scoring.best(houses, distance, topSpeed)
-    return houses * scoring.DELIVERY + maxBonus(distance, topSpeed)
+    return houses * scoring.DELIVERY + math.floor(maxBonus(distance, topSpeed) / 2)
 end
 
 local GRADES = { { "S", 0.95 }, { "A", 0.9 }, { "B", 0.8 }, { "C", 0.65 }, { "D", 0.4 } }
