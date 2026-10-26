@@ -1,9 +1,11 @@
+local scoring = require("scoring")
+
 local CHUNK_W, CHUNK_H = 1920, 1080
 local HOUSE_W = 800
 local VAN_RADIUS = 80
 local MARGIN = 160
 local DRIFT = 402
-local MAX_SPEED, MIN_SPEED, ACCEL, BRAKE, STEER = 480, 120, 320, 600, 340
+local MAX_SPEED, MIN_SPEED, ACCEL, BRAKE, STEER = 480, 160, 320, 600, 340
 local ZOOM = 0.7
 local MAX_TILT, TILT_RATE = 0.35, 8
 local START_Y = 540
@@ -11,6 +13,10 @@ local VIEW_W, VIEW_H = CHUNK_W / ZOOM, CHUNK_H / ZOOM
 local VAN_SCALE = 3.5
 local PACKAGE_SPEED, PACKAGE_LIFE, PACKAGE_SIZE, THROW_COOLDOWN = 650, 2.2, 72, 0.6
 local AMMO_START = 15
+local RUN_LEVELS = 8
+local EXIT_SPEED = 700
+local NAME_LEN = 5
+local BOARD_FILE = "scores.txt"
 local MAILBOX_CHANCE = 0.2
 local MAILBOX = { x = 1000, y = 430, w = 66, h = 104 }
 local DOOR = { x = 475, y = 425, w = 75, h = 205 }
@@ -22,6 +28,7 @@ local CROSS_SPAN = 2800
 local EDGE = 512
 local LEVEL_BASE, LEVEL_STEP = 8, 2
 local ZOOM_TIME = 2
+local START_DELAY = 2
 local OVERVIEW_H = 840
 local CAR_W, CAR_H = 300, 150
 local CAR_SPEED_MIN, CAR_SPEED_MAX = 420, 580
@@ -43,8 +50,20 @@ local borderShader
 local art = {}
 local packages = {}
 local score = {}
+local runTotal = 0
+local levelPoints = 0
+local levelGrade = "F"
+local levelBonus = 0
+local elapsed = 0
+local levelPar = 0
+local levelStars = 0
+local exitComplete = false
+local name = {}
+local nameCursor = 1
+local board = {}
+local boardRank
 local cooldown = 0
-local crashCooldown = 0
+local startDelay = 0
 local state = "play"
 local zoomT = 0
 local level, levelLen = 1, 10
@@ -53,6 +72,10 @@ local fonts = {}
 local sounds = {}
 local DELIVER_VOICES = { "hello", "thank_you_1" }
 local WINDOW_VOICES = { "my_window_1", "my_leg" }
+local EXIT_VOICES = { "out_of_packages_1", "out_of_packages_2", "out_of_packages_3" }
+local exitVoices = {}
+local HOUSE_CRASH_VOICES = { "house_crash" }
+local houseCrashVoices = {}
 
 local function crossAt(n)
     while lastCross < n do
@@ -67,7 +90,7 @@ local function chunkAt(n)
         local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
         local cross = crossAt(n)
         local start = n == 0
-        local c = { image = start and startImage or cross and crossImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross }
+        local c = { image = start and startImage or cross and crossImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross, delivered = false }
         if start then
         elseif cross then
             c.lanes = {}
@@ -107,21 +130,23 @@ local function blocked(x, y)
     local n = math.floor(-y / CHUNK_H)
     local lx = math.floor(x - DRIFT * n)
     local ly = math.floor(y + (n + 1) * CHUNK_H)
-    if n < 0 or lx < 0 then return true end
+    if n < 0 or lx < 0 then return true, false end
     if lx >= HOUSE_W or chunkAt(n).bare then return false end
     local r, g, b = mask:getPixel(lx, ly)
     local lawn = g > 0.9 and r < 0.2 and b < 0.2
     local pavement = math.abs(r - g) < 0.06 and math.abs(g - b) < 0.06 and r > 0.4 and r < 0.85
-    return not (lawn or pavement)
+    return not (lawn or pavement), true
 end
 
 local function vanBlocked(x, y)
-    if blocked(x, y) then return true end
+    local hit, house = blocked(x, y)
+    if hit then return true, house end
     for i = 0, 7 do
         local a = i * math.pi / 4
-        if blocked(x + VAN_RADIUS * math.cos(a), y + VAN_RADIUS * math.sin(a)) then return true end
+        hit, house = blocked(x + VAN_RADIUS * math.cos(a), y + VAN_RADIUS * math.sin(a))
+        if hit then return true, house end
     end
-    return false
+    return false, false
 end
 
 local function inRect(px, py, left, top, right, bottom)
@@ -172,29 +197,23 @@ local function cameraX(y)
 end
 
 local function levelStats()
-    local st = { doors = 0, doorsDone = 0, windows = 0, windowsDone = 0, mailboxes = 0, mailboxesDone = 0, crushed = 0 }
+    local st = { houses = 0, housesDone = 0, windows = 0, crushed = 0 }
     for n = 0, levelLen - 1 do
         local c = chunkAt(n)
         if c.door then
-            st.doors = st.doors + 1
-            if c.door.delivered then st.doorsDone = st.doorsDone + 1 end
+            st.houses = st.houses + 1
+            if c.delivered then st.housesDone = st.housesDone + 1 end
         end
         for _, win in ipairs(c.windows) do
-            st.windows = st.windows + 1
-            if win.broken then st.windowsDone = st.windowsDone + 1 end
+            if win.broken then st.windows = st.windows + 1 end
         end
-        if c.mailbox then
-            st.mailboxes = st.mailboxes + 1
-            if c.mailbox.delivered then st.mailboxesDone = st.mailboxesDone + 1 end
-            if c.mailbox.down then st.crushed = st.crushed + 1 end
-        end
+        if c.mailbox and c.mailbox.down then st.crushed = st.crushed + 1 end
     end
     return st
 end
 
 local function levelAmmo()
-    local st = levelStats()
-    return math.max(st.doors + st.mailboxes, AMMO_START + 1 - level)
+    return math.max(levelStats().houses, AMMO_START + 1 - level)
 end
 
 local function startLevel(n)
@@ -206,28 +225,77 @@ local function startLevel(n)
     lastCross = 0
     packages = {}
     ammo = levelAmmo()
+    score = { delivered = 0, windows = 0, mailboxes = 0 }
     cooldown = 0
-    crashCooldown = 0
+    startDelay = START_DELAY
+    elapsed = 0
+    sounds.summary:stop()
+    sounds.theme:play()
+    sounds.ambience:play()
     play("car_startup")
     if not sounds.van_running:isPlaying() then sounds.van_running:play() end
     van = { x = 1550 + DRIFT * START_Y / CHUNK_H, y = -START_Y, speed = MIN_SPEED, angle = 0, image = van.image }
 end
 
 local function reset()
-    score = { delivered = 0, windows = 0, mailboxes = 0 }
+    runTotal = 0
     startLevel(1)
 end
 
-local function finishLevel()
+local function levelDistance()
+    return levelLen * CHUNK_H - START_Y
+end
+
+local function finishLevel(early)
     state = "zoom"
     zoomT = 0
+    local houses = levelStats().houses
+    levelPar = scoring.par(levelDistance(), MAX_SPEED)
+    levelStars = early and 0 or scoring.stars(elapsed, levelDistance(), MAX_SPEED)
+    levelBonus = early and 0 or scoring.bonus(elapsed, levelDistance(), MAX_SPEED, score.delivered, houses)
+    levelPoints = scoring.points(score.delivered, score.windows, score.mailboxes, levelBonus)
+    levelGrade = scoring.grade(scoring.best(houses, levelDistance(), MAX_SPEED), levelPoints, score.windows + score.mailboxes)
+    runTotal = runTotal + levelPoints
     sounds.van_running:pause()
-    play("successful_package")
+    sounds.theme:pause()
+    sounds.ambience:pause()
+    sounds.summary:play()
+    if not early then play("successful_package") end
+end
+
+local function startExit()
+    state = "exit"
+    local st = levelStats()
+    exitComplete = st.housesDone == st.houses
+    if not exitComplete and #exitVoices > 0 then play(exitVoices[love.math.random(#exitVoices)]) end
+end
+
+local function loadBoard()
+    local text = love.filesystem.read(BOARD_FILE)
+    board = text and scoring.decode(text) or {}
+end
+
+local function enterName()
+    state = "name"
+    name = { "A", "A", "A", "A", "A" }
+    nameCursor = 1
+end
+
+local function submitName()
+    local entry = table.concat(name)
+    loadBoard()
+    board = scoring.insert(board, entry, runTotal)
+    boardRank = nil
+    for i, e in ipairs(board) do
+        if e.name == entry and e.score == runTotal then boardRank = i break end
+    end
+    love.filesystem.write(BOARD_FILE, scoring.encode(board))
+    state = "board"
 end
 
 local function camera()
     local z, x, y = ZOOM, cameraX(van.y), van.y - VIEW_H * 0.65
-    if state == "play" then return z, x, y, 0 end
+    if state == "play" or state == "exit" then return z, x, y, 0 end
     local t = zoomT * zoomT * (3 - 2 * zoomT)
     local width, height = DRIFT * (levelLen - 1) + CHUNK_W, levelLen * CHUNK_H
     local zEnd = math.min(OVERVIEW_H / height, 1700 / width)
@@ -243,16 +311,38 @@ local function drawMarkers(c, r, alpha)
         love.graphics.circle("fill", x, y, r)
     end
     if c.door then
-        if c.door.delivered then dot(c.door.x + c.door.w / 2, c.door.y + c.door.h / 2, 0, 0.8, 0) else dot(c.door.x + c.door.w / 2, c.door.y + c.door.h / 2, 0.9, 0.15, 0.15) end
+        local d = c.door
+        if c.delivered then dot(d.x + d.w / 2, d.y + d.h / 2, 0, 0.8, 0) else dot(d.x + d.w / 2, d.y + d.h / 2, 0.9, 0.15, 0.15) end
     end
     for _, win in ipairs(c.windows) do
-        if win.broken then dot(win.x, win.y, 0, 0.8, 0) else dot(win.x, win.y, 0.9, 0.15, 0.15) end
+        if win.broken then dot(win.x, win.y, 0.9, 0.15, 0.15) end
     end
     local m = c.mailbox
-    if m then
-        if m.delivered then dot(m.x, m.y, 0, 0.8, 0) elseif m.down then dot(m.x, m.y, 1, 0.6, 0) else dot(m.x, m.y, 0.9, 0.15, 0.15) end
-    end
+    if m and m.down then dot(m.x, m.y, 0.9, 0.15, 0.15) end
     love.graphics.setColor(1, 1, 1)
+end
+
+local function drawStar(cx, cy, r, filled, color)
+    local pts = {}
+    for i = 0, 9 do
+        local a = -math.pi / 2 + i * math.pi / 5
+        local d = i % 2 == 0 and r or r * 0.45
+        pts[#pts + 1] = { cx + d * math.cos(a), cy + d * math.sin(a) }
+    end
+    if filled then
+        love.graphics.setColor(color)
+        for i = 1, 10 do
+            local p, q = pts[i], pts[i % 10 + 1]
+            love.graphics.polygon("fill", cx, cy, p[1], p[2], q[1], q[2])
+        end
+    else
+        love.graphics.setColor(0.4, 0.4, 0.45)
+        love.graphics.setLineWidth(2)
+        for i = 1, 10 do
+            local p, q = pts[i], pts[i % 10 + 1]
+            love.graphics.line(p[1], p[2], q[1], q[2])
+        end
+    end
 end
 
 local function knockOutWhite(path)
@@ -311,6 +401,15 @@ function love.load()
     for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "van_running", "watchwheregoing", "window_crash" }) do
         sounds[name] = love.audio.newSource("sounds/" .. name .. ".ogg", "static")
     end
+    for _, group in ipairs({ { EXIT_VOICES, exitVoices }, { HOUSE_CRASH_VOICES, houseCrashVoices } }) do
+        for _, voice in ipairs(group[1]) do
+            local path = "sounds/" .. voice .. ".ogg"
+            if love.filesystem.getInfo(path) then
+                sounds[voice] = love.audio.newSource(path, "static")
+                group[2][#group[2] + 1] = voice
+            end
+        end
+    end
     sounds.ambience = love.audio.newSource("sounds/ambience.ogg", "stream")
     sounds.ambience:setLooping(true)
     sounds.ambience:setVolume(0.5)
@@ -320,6 +419,10 @@ function love.load()
     sounds.theme:setVolume(0.85)
     sounds.theme:setPitch(0.8)
     sounds.theme:play()
+    sounds.summary = love.audio.newSource("sounds/amazindrum.ogg", "stream")
+    sounds.summary:setLooping(true)
+    sounds.summary:setVolume(0.85)
+    sounds.summary:setPitch(0.8)
     sounds.van_running:setLooping(true)
     sounds.van_running:setVolume(0.5)
     sounds.van_running:play()
@@ -336,15 +439,29 @@ function love.load()
     fonts.title = love.graphics.newFont(44)
     fonts.body = love.graphics.newFont(26)
     fonts.counter = love.graphics.newFont(40)
+    fonts.grade = love.graphics.newFont(300)
     border = love.graphics.newImage("assets/border.png")
     borderShader = love.graphics.newShader(BORDER_SHADER)
     borderShader:send("size", { border:getWidth(), border:getHeight() })
     mask = love.image.newImageData("assets/chunk1.png")
     love.graphics.setBackgroundColor(0.75, 0.75, 0.75)
+    loadBoard()
     reset()
 end
 
 function love.update(dt)
+    if state == "exit" then
+        updateCars(dt, math.floor(-van.y / CHUNK_H))
+        van.angle = van.angle + (MAX_TILT - van.angle) * math.min(1, TILT_RATE * dt)
+        van.x = van.x + EXIT_SPEED * dt + DRIFT * van.speed * dt / CHUNK_H
+        van.y = van.y - van.speed * dt
+        sounds.van_running:setPitch(0.6 + 0.8 * van.speed / MAX_SPEED)
+        if van.x > cameraX(van.y) + VIEW_W + VAN_RADIUS * 2 then
+            van.gone = true
+            finishLevel(not exitComplete)
+        end
+        return
+    end
     if state ~= "play" then
         if state == "zoom" then
             zoomT = math.min(1, zoomT + dt / ZOOM_TIME)
@@ -352,8 +469,12 @@ function love.update(dt)
         end
         return
     end
+    if startDelay > 0 then
+        startDelay = startDelay - dt
+        return
+    end
+    elapsed = elapsed + dt
     cooldown = math.max(0, cooldown - dt)
-    crashCooldown = math.max(0, crashCooldown - dt)
     updateCars(dt, math.floor(-van.y / CHUNK_H))
     local down = love.keyboard.isDown
     if down("up", "w") then
@@ -370,14 +491,22 @@ function love.update(dt)
     local cx = cameraX(ny)
     nx = math.max(cx + MARGIN, math.min(cx + VIEW_W - MARGIN, nx))
     local hitX = carHit(nx, van.y)
-    if not vanBlocked(nx, van.y) and not hitX then van.x = nx end
+    local blockedX, houseX = vanBlocked(nx, van.y)
+    if not blockedX and not hitX then van.x = nx end
     local hitY = carHit(van.x, ny)
-    if (hitX or hitY) and crashCooldown == 0 then
-        crashCooldown = 1.5
+    local blockedY, houseY = vanBlocked(van.x, ny)
+    if hitX or hitY then
         play("thatsmycar")
+        finishLevel(true)
+        return
+    end
+    if houseX or houseY then
+        if #houseCrashVoices > 0 then playOneOf(houseCrashVoices) end
+        finishLevel(true)
+        return
     end
     sounds.van_running:setPitch(0.6 + 0.8 * van.speed / MAX_SPEED)
-    if vanBlocked(van.x, ny) or hitY then
+    if blockedY or hitY then
         van.speed = MIN_SPEED
     else
         van.y = ny
@@ -413,8 +542,9 @@ function love.update(dt)
             end
             local d = c.door
             if d and inRect(pk.x, pk.y, d.x, d.y, d.x + d.w, d.y + d.h) then
-                if not d.delivered then
-                    d.delivered = true
+                d.delivered = true
+                if not c.delivered then
+                    c.delivered = true
                     play("successful_package")
                     playOneOf(DELIVER_VOICES)
                     score.delivered = score.delivered + 1
@@ -424,23 +554,42 @@ function love.update(dt)
             local m = c.mailbox
             if m and not m.down and not m.delivered and circleHitsMailbox(m, pk.x, pk.y, PACKAGE_SIZE / 2) then
                 m.delivered = true
-                play("successful_package")
-                play("how_gonna_get_mail")
-                score.delivered = score.delivered + 1
+                if not c.delivered then
+                    c.delivered = true
+                    play("successful_package")
+                    play("how_gonna_get_mail")
+                    score.delivered = score.delivered + 1
+                end
                 gone = true
             end
         end
         if gone then table.remove(packages, i) end
     end
 
-    if van.y <= -levelLen * CHUNK_H then finishLevel() end
+    if van.y <= -levelLen * CHUNK_H then
+        finishLevel()
+    elseif ammo == 0 and #packages == 0 then
+        startExit()
+    end
 end
 
 function love.keypressed(key)
     if key == "escape" then love.event.quit() end
-    if key == "r" then reset() end
+    if key == "r" and state ~= "name" then reset() end
     if state == "summary" and (key == "space" or key == "return") then
-        startLevel(level + 1)
+        if level >= RUN_LEVELS then enterName() else startLevel(level + 1) end
+        return
+    end
+    if state == "name" then
+        if key == "w" or key == "up" then name[nameCursor] = scoring.cycle(name[nameCursor], 1) end
+        if key == "s" or key == "down" then name[nameCursor] = scoring.cycle(name[nameCursor], -1) end
+        if key == "a" or key == "left" then nameCursor = math.max(1, nameCursor - 1) end
+        if key == "d" or key == "right" then nameCursor = math.min(NAME_LEN, nameCursor + 1) end
+        if key == "return" or key == "space" then submitName() end
+        return
+    end
+    if state == "board" then
+        if key == "space" or key == "return" then reset() end
         return
     end
     if key == "space" and state == "play" and cooldown == 0 and ammo > 0 then
@@ -517,7 +666,7 @@ function love.draw()
     end
     love.graphics.setColor(1, 1, 1)
 
-    love.graphics.draw(van.image, van.x, van.y, van.angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2)
+    if not van.gone then love.graphics.draw(van.image, van.x, van.y, van.angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2) end
 
     love.graphics.origin()
     love.graphics.translate((w - CHUNK_W * scale) / 2, (h - CHUNK_H * scale) / 2)
@@ -527,14 +676,16 @@ function love.draw()
     love.graphics.draw(border, 0, 0, 0, CHUNK_W / border:getWidth(), CHUNK_H / border:getHeight())
     love.graphics.setShader()
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(string.format("level %d  speed %d  distance %dm\ndelivered %d  windows %d  mailboxes %d\narrows/wasd drive - space throw - r restart - esc quit", level, van.speed, (-START_Y - van.y) / 100, score.delivered, score.windows, score.mailboxes), 110, 105)
-    local label = "packages  " .. ammo
-    local tw, th, pad, right, top = fonts.counter:getWidth(label), fonts.counter:getHeight(), 16, BORDER_RIGHT, BORDER_TOP
-    love.graphics.setFont(fonts.counter)
-    love.graphics.setColor(0, 0, 0, 0.85)
-    love.graphics.rectangle("fill", right - tw - pad * 2, top, tw + pad * 2, th + pad)
-    if ammo == 0 then love.graphics.setColor(0.9, 0.15, 0.15) else love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) end
-    love.graphics.print(label, right - tw - pad, top + pad / 2)
+    love.graphics.print(string.format("level %d/%d  speed %d  distance %dm  time %.1f / %.1f\ndelivered %d  windows -%d  mailboxes -%d\nscore %d  total %d\narrows/wasd drive - space throw - r restart - esc quit", level, RUN_LEVELS, van.speed, (-START_Y - van.y) / 100, elapsed, scoring.par(levelDistance(), MAX_SPEED), score.delivered, score.windows, score.mailboxes, scoring.points(score.delivered, score.windows, score.mailboxes), runTotal), 110, 105)
+    if state == "play" or state == "exit" then
+        local label = "packages  " .. ammo
+        local tw, th, pad, right, top = fonts.counter:getWidth(label), fonts.counter:getHeight(), 16, BORDER_RIGHT, BORDER_TOP
+        love.graphics.setFont(fonts.counter)
+        love.graphics.setColor(0, 0, 0, 0.85)
+        love.graphics.rectangle("fill", right - tw - pad * 2, top, tw + pad * 2, th + pad)
+        if ammo == 0 then love.graphics.setColor(0.9, 0.15, 0.15) else love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) end
+        love.graphics.print(label, right - tw - pad, top + pad / 2)
+    end
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(fonts.default)
     if state == "summary" then
@@ -542,13 +693,72 @@ function love.draw()
         love.graphics.setFont(fonts.title)
         love.graphics.print("LEVEL " .. level .. " COMPLETE", 130, 200)
         love.graphics.setFont(fonts.body)
-        love.graphics.print(string.format("deliveries  %d / %d\nwindows  %d / %d\nmailboxes crushed  %d", st.doorsDone + st.mailboxesDone, st.doors + st.mailboxes, st.windowsDone, st.windows, st.crushed), 130, 290)
-        love.graphics.setColor(0, 0.8, 0)
-        love.graphics.print("green = done", 130, 440)
-        love.graphics.setColor(0.9, 0.15, 0.15)
-        love.graphics.print("red = missed", 130, 475)
+        local rows = {
+            { "deliveries", string.format("%d / %d", st.housesDone, st.houses), st.housesDone * scoring.DELIVERY, { 0.2, 0.9, 0.3 } },
+            { "broken windows", tostring(st.windows), -st.windows * scoring.WINDOW, { 0.95, 0.25, 0.25 } },
+            { "mailboxes crushed", tostring(st.crushed), -st.crushed * scoring.MAILBOX, { 1, 0.6, 0.1 } },
+            { "time bonus", nil, levelBonus, { 0.3, 0.8, 1 } },
+        }
+        for i, r in ipairs(rows) do
+            local y = 290 + (i - 1) * 44
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print(r[1], 130, y)
+            if r[2] then love.graphics.printf(r[2], 400, y, 170, "right") end
+            if i == 4 then
+                for k = 1, 3 do drawStar(460 + (k - 1) * 45, y + 17, 18, k <= levelStars, r[4]) end
+            end
+            love.graphics.setColor(r[4])
+            love.graphics.printf(string.format("%+d", r[3]), 590, y, 160, "right")
+        end
         love.graphics.setColor(1, 1, 1)
-        love.graphics.print("space - next level", 130, 540)
+        love.graphics.rectangle("fill", 130, 480, 620, 3)
+        love.graphics.print("level score", 130, 495)
+        love.graphics.printf(tostring(levelPoints), 590, 495, 160, "right")
+        love.graphics.setFont(fonts.counter)
+        love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1))
+        love.graphics.print("TOTAL", 130, 555)
+        love.graphics.printf(tostring(runTotal), 520, 555, 230, "right")
+        love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1))
+        love.graphics.setFont(fonts.title)
+        love.graphics.printf("GRADE", 1100, 240, 700, "center")
+        love.graphics.setFont(fonts.grade)
+        love.graphics.printf(levelGrade, 1100, 290, 700, "center")
+        love.graphics.setFont(fonts.body)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(level >= RUN_LEVELS and "space - enter name" or "space - next level", 130, 650)
+        love.graphics.setFont(fonts.default)
+    elseif state == "name" then
+        love.graphics.setColor(0, 0, 0, 0.85)
+        love.graphics.rectangle("fill", 0, 0, CHUNK_W, CHUNK_H)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setFont(fonts.title)
+        love.graphics.printf("RUN COMPLETE  " .. runTotal, 0, 220, CHUNK_W, "center")
+        love.graphics.setFont(fonts.counter)
+        local cell = 90
+        local x0 = (CHUNK_W - cell * NAME_LEN) / 2
+        for i = 1, NAME_LEN do
+            if i == nameCursor then love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) else love.graphics.setColor(1, 1, 1) end
+            love.graphics.printf(name[i], x0 + (i - 1) * cell, 440, cell, "center")
+            if i == nameCursor then love.graphics.rectangle("fill", x0 + (i - 1) * cell + 15, 500, cell - 30, 6) end
+        end
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setFont(fonts.body)
+        love.graphics.printf("w/s letter - a/d move - space confirm", 0, 640, CHUNK_W, "center")
+        love.graphics.setFont(fonts.default)
+    elseif state == "board" then
+        love.graphics.setColor(0, 0, 0, 0.85)
+        love.graphics.rectangle("fill", 0, 0, CHUNK_W, CHUNK_H)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setFont(fonts.title)
+        love.graphics.printf("LEADERBOARD", 0, 130, CHUNK_W, "center")
+        love.graphics.setFont(fonts.body)
+        for i, e in ipairs(board) do
+            if i == boardRank then love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) else love.graphics.setColor(1, 1, 1) end
+            love.graphics.printf(string.format("%2d.  %s", i, e.name), 600, 230 + (i - 1) * 54, 400, "left")
+            love.graphics.printf(tostring(e.score), 900, 230 + (i - 1) * 54, 300, "right")
+        end
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf("space - new run", 0, 850, CHUNK_W, "center")
         love.graphics.setFont(fonts.default)
     end
     love.graphics.origin()
