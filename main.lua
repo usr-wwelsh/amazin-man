@@ -1,4 +1,5 @@
 local scoring = require("scoring")
+local dog = require("dog")
 
 local CHUNK_W, CHUNK_H = 1920, 1080
 local HOUSE_W = 800
@@ -18,6 +19,14 @@ local EXIT_SPEED = 700
 local NAME_LEN = 5
 local BOARD_FILE = "scores.txt"
 local MAILBOX_CHANCE = 0.2
+local DOG_LEVEL = 3
+local DOG_GAP_MIN, DOG_GAP_MAX = 3, 8
+local SIDEWALK_LEFT = { top = 1430, bottom = 1030 }
+local SIDEWALK_RIGHT = { top = 1620, bottom = 1250 }
+local DOG_HOME = { x = 300, y = 1005 }
+local DOG_REST = { x = 440, y = 1012 }
+local DOG_SIZE, DOG_HOME_SIZE = 200, 240
+local SLOW_TIME, SLOW_SPEED = 2.5, 256
 local MAILBOX = { x = 1000, y = 430, w = 66, h = 104 }
 local DOOR = { x = 475, y = 425, w = 75, h = 205 }
 local WINDOWS = { { x = 480, y = 290, w = 80, h = 100 }, { x = 190, y = 700, w = 80, h = 110 } }
@@ -42,10 +51,13 @@ local crossImage
 local startImage
 local edgeQuad
 local carImages = {}
+local dogImages = {}
 local crossChunks = {}
 local lastCross = 0
 local grassChunks = {}
 local lastGrass = 0
+local dogChunks = {}
+local lastDog = 0
 local grassImage
 local layout = {}
 local van = {}
@@ -102,6 +114,14 @@ local function grassAt(n)
     return grassChunks[n]
 end
 
+local function dogAt(n)
+    while lastDog < n do
+        lastDog = lastDog + love.math.random(DOG_GAP_MIN, DOG_GAP_MAX)
+        dogChunks[lastDog] = true
+    end
+    return dogChunks[n]
+end
+
 local function chunkAt(n)
     if not layout[n] then
         local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
@@ -124,6 +144,10 @@ local function chunkAt(n)
             end
             if love.math.random() < MAILBOX_CHANCE then
                 c.mailbox = { x = ox + MAILBOX.x, y = oy + MAILBOX.y, w = MAILBOX.w, h = MAILBOX.h, down = false, delivered = false }
+            end
+            if level >= DOG_LEVEL and n < levelLen and dogAt(n) then
+                c.dog = dog.new(ox + DOG_REST.x, oy + DOG_REST.y, ox + DOG_REST.x, oy + DOG_REST.y)
+                c.dogHome = { x = ox + DOG_HOME.x, y = oy + DOG_HOME.y }
             end
         end
         layout[n] = c
@@ -214,6 +238,16 @@ local function cameraX(y)
     return drift(y) - (VIEW_W - CHUNK_W) / 2
 end
 
+local function vanOnSidewalk()
+    local n = math.floor(-van.y / CHUNK_H)
+    local lx = van.x - DRIFT * n
+    local ly = van.y + (n + 1) * CHUNK_H
+    local f = ly / CHUNK_H
+    local left = SIDEWALK_LEFT.top + (SIDEWALK_LEFT.bottom - SIDEWALK_LEFT.top) * f
+    local right = SIDEWALK_RIGHT.top + (SIDEWALK_RIGHT.bottom - SIDEWALK_RIGHT.top) * f
+    return lx - VAN_RADIUS <= right and lx + VAN_RADIUS >= left
+end
+
 local function levelStats()
     local st = { houses = 0, housesDone = 0, windows = 0, crushed = 0 }
     for n = 0, levelLen - 1 do
@@ -243,6 +277,8 @@ local function startLevel(n)
     grassChunks = {}
     lastGrass = 0
     lastCross = 0
+    dogChunks = {}
+    lastDog = 0
     packages = {}
     ammo = levelAmmo()
     score = { delivered = 0, windows = 0, mailboxes = 0 }
@@ -418,7 +454,7 @@ function love.load()
         chunkImages[i] = love.graphics.newImage("assets/chunk" .. i .. ".png")
     end
     edgeQuad = love.graphics.newQuad(-EDGE, 0, CHUNK_W + EDGE, CHUNK_H, CHUNK_W, CHUNK_H)
-    for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "van_running", "watchwheregoing", "window_crash" }) do
+    for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "dogbark", "van_running", "watchwheregoing", "window_crash" }) do
         sounds[name] = love.audio.newSource("sounds/" .. name .. ".ogg", "static")
     end
     for _, group in ipairs({ { EXIT_VOICES, exitVoices }, { HOUSE_CRASH_VOICES, houseCrashVoices } }) do
@@ -430,6 +466,7 @@ function love.load()
             end
         end
     end
+    sounds.dogbark:setVolume(0.3)
     sounds.ambience = love.audio.newSource("sounds/ambience.ogg", "stream")
     sounds.ambience:setLooping(true)
     sounds.ambience:setVolume(0.5)
@@ -453,6 +490,9 @@ function love.load()
         carImages[i] = love.graphics.newImage(knockOutWhite("assets/car" .. i .. ".png"))
     end
     van.image = love.graphics.newImage("assets/van.png")
+    for _, name in ipairs({ "dogsleep", "dogbark", "dogrun1", "dogrun2", "doghome" }) do
+        dogImages[name] = love.graphics.newImage(knockOutWhite("assets/" .. name .. ".png"))
+    end
     for _, name in ipairs({ "window", "mailbox", "box" }) do
         art[name] = love.graphics.newImage("assets/" .. name .. ".png")
     end
@@ -497,6 +537,7 @@ function love.update(dt)
     elapsed = elapsed + dt
     cooldown = math.max(0, cooldown - dt)
     updateCars(dt, math.floor(-van.y / CHUNK_H))
+    van.slowT = math.max(0, (van.slowT or 0) - dt)
     local down = love.keyboard.isDown
     if down("up", "w") then
         van.speed = math.min(MAX_SPEED, van.speed + ACCEL * dt)
@@ -505,6 +546,7 @@ function love.update(dt)
     else
         van.speed = math.max(MIN_SPEED, van.speed - ACCEL * 0.3 * dt)
     end
+    if van.slowT > 0 then van.speed = math.min(van.speed, SLOW_SPEED) end
     local steer = (down("right", "d") and 1 or 0) - (down("left", "a") and 1 or 0)
     van.angle = van.angle + (steer * MAX_TILT - van.angle) * math.min(1, TILT_RATE * dt)
     local nx = van.x + steer * STEER * dt + DRIFT * van.speed * dt / CHUNK_H
@@ -540,6 +582,17 @@ function love.update(dt)
             m.down = true
             play("watchwheregoing")
             score.mailboxes = score.mailboxes + 1
+        end
+    end
+
+    local provoked = vanOnSidewalk()
+    for n, c in pairs(layout) do
+        local d = c.dog
+        local event = d and (math.abs(n - vn) <= 1 or d.state == "chase" or d.state == "home") and dog.update(d, dt, van.x, van.y, provoked)
+        if event == "bark" then play("dogbark") end
+        if event == "bite" then
+            ammo = math.max(0, ammo - 1)
+            van.slowT = SLOW_TIME
         end
     end
 
@@ -679,7 +732,15 @@ function love.draw()
             end
         end
         love.graphics.setColor(1, 1, 1)
+        if c.dogHome then drawFit(dogImages.doghome, c.dogHome.x, c.dogHome.y, DOG_HOME_SIZE, DOG_HOME_SIZE) end
         if t > 0 then drawMarkers(c, 7 / z, t) end
+    end
+    for _, c in pairs(layout) do
+        local d = c.dog
+        if d then
+            local frame = d.state == "bark" and "dogbark" or (d.state == "chase" or d.state == "home") and (math.floor(love.timer.getTime() * 10) % 2 == 0 and "dogrun1" or "dogrun2") or "dogsleep"
+            drawFit(dogImages[frame], d.x, d.y, DOG_SIZE * d.dir, DOG_SIZE)
+        end
     end
 
     for _, pk in ipairs(packages) do
@@ -687,6 +748,7 @@ function love.draw()
     end
     love.graphics.setColor(1, 1, 1)
 
+    if van.slowT and van.slowT > 0 then love.graphics.setColor(1, 0.55, 0.55) end
     if not van.gone then love.graphics.draw(van.image, van.x, van.y, van.angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2) end
 
     love.graphics.origin()
