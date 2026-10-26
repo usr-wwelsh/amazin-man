@@ -697,7 +697,6 @@ function love.draw()
     love.graphics.draw(border, 0, 0, 0, CHUNK_W / border:getWidth(), CHUNK_H / border:getHeight())
     love.graphics.setShader()
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(string.format("level %d/%d  speed %d  distance %dm  time %.1f / %.1f\ndelivered %d  windows -%d  mailboxes -%d\nscore %d  total %d\narrows/wasd drive - space throw - r restart - esc quit", level, RUN_LEVELS, van.speed, (-START_Y - van.y) / 100, elapsed, scoring.par(levelDistance(), MAX_SPEED), score.delivered, score.windows, score.mailboxes, scoring.points(score.delivered, score.windows, score.mailboxes), runTotal), 110, 105)
     if state == "play" or state == "exit" then
         local label = "packages  " .. ammo
         local tw, th, pad, right, top = fonts.counter:getWidth(label), fonts.counter:getHeight(), 16, BORDER_RIGHT, BORDER_TOP
