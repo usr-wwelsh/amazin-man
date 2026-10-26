@@ -90,6 +90,7 @@ local fonts = {}
 local sounds = {}
 local DELIVER_VOICES = { "hello", "thank_you_1" }
 local WINDOW_VOICES = { "my_window_1", "my_leg" }
+local START_VOICES = { "start1", "start2", "start3", "start4", "start5" }
 local EXIT_VOICES = { "out_of_packages_1", "out_of_packages_2", "out_of_packages_3" }
 local exitVoices = {}
 local HOUSE_CRASH_VOICES = { "house_crash" }
@@ -290,6 +291,7 @@ local function startLevel(n)
     sounds.theme:play()
     sounds.ambience:play()
     play("car_startup")
+    playOneOf(START_VOICES)
     if not sounds.van_running:isPlaying() then sounds.van_running:play() end
     van = { x = 1550 + DRIFT * START_Y / CHUNK_H, y = -START_Y, speed = MIN_SPEED, angle = 0, image = van.image }
 end
@@ -455,7 +457,7 @@ function love.load()
         chunkImages[i] = love.graphics.newImage("assets/chunk" .. i .. ".png")
     end
     edgeQuad = love.graphics.newQuad(-EDGE, 0, CHUNK_W + EDGE, CHUNK_H, CHUNK_W, CHUNK_H)
-    for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "dogbark", "van_running", "watchwheregoing", "window_crash" }) do
+    for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "dogbark", "start1", "start2", "start3", "start4", "start5", "van_running", "watchwheregoing", "window_crash" }) do
         sounds[name] = love.audio.newSource("sounds/" .. name .. ".ogg", "static")
     end
     for _, group in ipairs({ { EXIT_VOICES, exitVoices }, { HOUSE_CRASH_VOICES, houseCrashVoices } }) do
