@@ -10,11 +10,13 @@ local START_Y = 540
 local VIEW_W, VIEW_H = CHUNK_W / ZOOM, CHUNK_H / ZOOM
 local VAN_SCALE = 3.5
 local PACKAGE_SPEED, PACKAGE_LIFE, PACKAGE_SIZE, THROW_COOLDOWN = 650, 2.2, 72, 0.6
+local AMMO_START = 15
 local MAILBOX_CHANCE = 0.2
 local MAILBOX = { x = 1000, y = 430, w = 66, h = 104 }
 local DOOR = { x = 475, y = 425, w = 75, h = 205 }
 local WINDOWS = { { x = 480, y = 290, w = 80, h = 100 }, { x = 190, y = 700, w = 80, h = 110 } }
 
+local BORDER_TOP, BORDER_RIGHT = 90, 1823
 local CROSS_MIN, CROSS_MAX = 6, 10
 local CROSS_SPAN = 2800
 local EDGE = 512
@@ -28,6 +30,7 @@ local CAR_LANES = { { y = 365, dir = -1 }, { y = 650, dir = 1 } }
 
 local chunkImages = {}
 local crossImage
+local startImage
 local edgeQuad
 local carImages = {}
 local crossChunks = {}
@@ -45,6 +48,7 @@ local crashCooldown = 0
 local state = "play"
 local zoomT = 0
 local level, levelLen = 1, 10
+local ammo = 0
 local fonts = {}
 local sounds = {}
 local DELIVER_VOICES = { "hello", "thank_you_1" }
@@ -62,8 +66,10 @@ local function chunkAt(n)
     if not layout[n] then
         local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
         local cross = crossAt(n)
-        local c = { image = cross and crossImage or chunkImages[n == 0 and 1 or love.math.random(#chunkImages)], windows = {}, cross = cross }
-        if cross then
+        local start = n == 0
+        local c = { image = start and startImage or cross and crossImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross }
+        if start then
+        elseif cross then
             c.lanes = {}
             for i, l in ipairs(CAR_LANES) do
                 local from, to = ox - EDGE - CAR_W, ox + CROSS_SPAN
@@ -75,7 +81,7 @@ local function chunkAt(n)
             for i, w in ipairs(WINDOWS) do
                 c.windows[i] = { x = ox + w.x, y = oy + w.y, w = w.w, h = w.h, left = ox + w.x - w.w / 2, right = ox + w.x + w.w / 2, broken = false }
             end
-            if n > 0 and love.math.random() < MAILBOX_CHANCE then
+            if love.math.random() < MAILBOX_CHANCE then
                 c.mailbox = { x = ox + MAILBOX.x, y = oy + MAILBOX.y, w = MAILBOX.w, h = MAILBOX.h, down = false, delivered = false }
             end
         end
@@ -102,7 +108,7 @@ local function blocked(x, y)
     local lx = math.floor(x - DRIFT * n)
     local ly = math.floor(y + (n + 1) * CHUNK_H)
     if n < 0 or lx < 0 then return true end
-    if lx >= HOUSE_W or chunkAt(n).cross then return false end
+    if lx >= HOUSE_W or chunkAt(n).bare then return false end
     local r, g, b = mask:getPixel(lx, ly)
     local lawn = g > 0.9 and r < 0.2 and b < 0.2
     local pavement = math.abs(r - g) < 0.06 and math.abs(g - b) < 0.06 and r > 0.4 and r < 0.85
@@ -165,33 +171,6 @@ local function cameraX(y)
     return drift(y) - (VIEW_W - CHUNK_W) / 2
 end
 
-local function startLevel(n)
-    level = n
-    levelLen = LEVEL_BASE + LEVEL_STEP * n
-    state = "play"
-    layout = {}
-    crossChunks = {}
-    lastCross = 0
-    packages = {}
-    cooldown = 0
-    crashCooldown = 0
-    play("car_startup")
-    if not sounds.van_running:isPlaying() then sounds.van_running:play() end
-    van = { x = 1550 + DRIFT * START_Y / CHUNK_H, y = -START_Y, speed = MIN_SPEED, angle = 0, image = van.image }
-end
-
-local function reset()
-    score = { delivered = 0, windows = 0, mailboxes = 0 }
-    startLevel(1)
-end
-
-local function finishLevel()
-    state = "zoom"
-    zoomT = 0
-    sounds.van_running:pause()
-    play("successful_package")
-end
-
 local function levelStats()
     local st = { doors = 0, doorsDone = 0, windows = 0, windowsDone = 0, mailboxes = 0, mailboxesDone = 0, crushed = 0 }
     for n = 0, levelLen - 1 do
@@ -211,6 +190,39 @@ local function levelStats()
         end
     end
     return st
+end
+
+local function levelAmmo()
+    local st = levelStats()
+    return math.max(st.doors + st.mailboxes, AMMO_START + 1 - level)
+end
+
+local function startLevel(n)
+    level = n
+    levelLen = LEVEL_BASE + LEVEL_STEP * n
+    state = "play"
+    layout = {}
+    crossChunks = {}
+    lastCross = 0
+    packages = {}
+    ammo = levelAmmo()
+    cooldown = 0
+    crashCooldown = 0
+    play("car_startup")
+    if not sounds.van_running:isPlaying() then sounds.van_running:play() end
+    van = { x = 1550 + DRIFT * START_Y / CHUNK_H, y = -START_Y, speed = MIN_SPEED, angle = 0, image = van.image }
+end
+
+local function reset()
+    score = { delivered = 0, windows = 0, mailboxes = 0 }
+    startLevel(1)
+end
+
+local function finishLevel()
+    state = "zoom"
+    zoomT = 0
+    sounds.van_running:pause()
+    play("successful_package")
 end
 
 local function camera()
@@ -284,6 +296,13 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
 }
 ]]
 
+local function hue(h)
+    local function ch(o)
+        return math.max(0, math.min(1, math.abs((h * 6 + o) % 6 - 3) - 1))
+    end
+    return ch(0), ch(4), ch(2)
+end
+
 function love.load()
     for i = 1, 4 do
         chunkImages[i] = love.graphics.newImage("assets/chunk" .. i .. ".png")
@@ -305,6 +324,7 @@ function love.load()
     sounds.van_running:setVolume(0.5)
     sounds.van_running:play()
     crossImage = love.graphics.newImage("assets/chunkCross.png")
+    startImage = love.graphics.newImage("assets/chunk0.png")
     for i = 1, 4 do
         carImages[i] = love.graphics.newImage(knockOutWhite("assets/car" .. i .. ".png"))
     end
@@ -315,6 +335,7 @@ function love.load()
     fonts.default = love.graphics.getFont()
     fonts.title = love.graphics.newFont(44)
     fonts.body = love.graphics.newFont(26)
+    fonts.counter = love.graphics.newFont(40)
     border = love.graphics.newImage("assets/border.png")
     borderShader = love.graphics.newShader(BORDER_SHADER)
     borderShader:send("size", { border:getWidth(), border:getHeight() })
@@ -418,9 +439,13 @@ end
 function love.keypressed(key)
     if key == "escape" then love.event.quit() end
     if key == "r" then reset() end
-    if state == "summary" and (key == "space" or key == "return") then startLevel(level + 1) end
-    if key == "space" and state == "play" and cooldown == 0 then
+    if state == "summary" and (key == "space" or key == "return") then
+        startLevel(level + 1)
+        return
+    end
+    if key == "space" and state == "play" and cooldown == 0 and ammo > 0 then
         cooldown = THROW_COOLDOWN
+        ammo = ammo - 1
         packages[#packages + 1] = { x = van.x, y = van.y, vx = -PACKAGE_SPEED, vy = -van.speed, life = PACKAGE_LIFE }
     end
 end
@@ -503,6 +528,15 @@ function love.draw()
     love.graphics.setShader()
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(string.format("level %d  speed %d  distance %dm\ndelivered %d  windows %d  mailboxes %d\narrows/wasd drive - space throw - r restart - esc quit", level, van.speed, (-START_Y - van.y) / 100, score.delivered, score.windows, score.mailboxes), 110, 105)
+    local label = "packages  " .. ammo
+    local tw, th, pad, right, top = fonts.counter:getWidth(label), fonts.counter:getHeight(), 16, BORDER_RIGHT, BORDER_TOP
+    love.graphics.setFont(fonts.counter)
+    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.rectangle("fill", right - tw - pad * 2, top, tw + pad * 2, th + pad)
+    if ammo == 0 then love.graphics.setColor(0.9, 0.15, 0.15) else love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) end
+    love.graphics.print(label, right - tw - pad, top + pad / 2)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(fonts.default)
     if state == "summary" then
         local st = levelStats()
         love.graphics.setFont(fonts.title)
