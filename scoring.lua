@@ -49,8 +49,14 @@ function scoring.grade(best, points, penalties)
     return "F"
 end
 
-function scoring.cycle(letter, dir)
-    return string.char((letter:byte() - 65 + dir) % 26 + 65)
+local NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:'\",.<>/?~`\\|"
+local NAME_CLASS = "[" .. NAME_CHARS:gsub("%p", "%%%0") .. "]"
+local NAME_PATTERN = "^(" .. string.rep(NAME_CLASS, 5) .. ") (%d+)$"
+
+function scoring.cycle(char, dir)
+    local i = NAME_CHARS:find(char, 1, true) or 1
+    i = (i - 1 + dir) % #NAME_CHARS + 1
+    return NAME_CHARS:sub(i, i)
 end
 
 function scoring.insert(list, name, score)
@@ -70,7 +76,7 @@ end
 function scoring.decode(text)
     local list = {}
     for line in text:gmatch("[^\n]+") do
-        local name, score = line:match("^(%u%u%u%u%u) (%d+)$")
+        local name, score = line:match(NAME_PATTERN)
         if name and #list < scoring.BOARD_SIZE then list[#list + 1] = { name = name, score = tonumber(score) } end
     end
     table.sort(list, function(a, b) return a.score > b.score end)

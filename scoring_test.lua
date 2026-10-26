@@ -14,8 +14,9 @@ eq(scoring.points(3, 0, 2), 3 * scoring.DELIVERY - 2 * scoring.MAILBOX, "mailbox
 eq(scoring.points(0, 5, 5), 0, "level score never negative")
 
 eq(scoring.cycle("A", 1), "B", "cycle up")
-eq(scoring.cycle("Z", 1), "A", "cycle wraps up")
-eq(scoring.cycle("A", -1), "Z", "cycle wraps down")
+eq(scoring.cycle("Z", 1), "0", "cycle enters digits")
+eq(scoring.cycle("|", 1), "A", "cycle wraps up")
+eq(scoring.cycle("A", -1), "|", "cycle wraps down")
 
 local list = {}
 for i = 1, scoring.BOARD_SIZE do list = scoring.insert(list, "AAAAA", i * 100) end
@@ -30,7 +31,11 @@ eq(#decoded, 2, "roundtrip count")
 eq(decoded[1].name, "WILLY", "roundtrip name")
 eq(decoded[2].score, 12, "roundtrip score")
 
-local hostile = scoring.decode("evil; rm -rf /\nlower 5\nTOOLONGNAME 5\nGOOD1 5\nGOODA -3\nGOODB 99\n")
+local symbols = scoring.decode(scoring.encode({ { name = "!@#$%", score = 5 }, { name = "-_=+[", score = 4 }, { name = "\\|`~?", score = 3 } }))
+eq(#symbols, 3, "symbol names roundtrip")
+eq(symbols[1].name, "!@#$%", "symbol name kept")
+
+local hostile = scoring.decode("evil; rm -rf /\nlower 5\nTOOLONGNAME 5\nGOODa 5\nGOODA -3\nGOODB 99\n")
 eq(#hostile, 1, "decode keeps only allowlisted lines")
 eq(hostile[1].name, "GOODB", "decode valid line")
 
