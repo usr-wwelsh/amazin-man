@@ -274,7 +274,7 @@ local function finishLevel(early)
     levelStars = early and 0 or scoring.stars(elapsed, levelDistance(), MAX_SPEED)
     levelBonus = early and 0 or scoring.bonus(elapsed, levelDistance(), MAX_SPEED, score.delivered, houses)
     levelPoints = scoring.points(score.delivered, score.windows, score.mailboxes, levelBonus)
-    levelGrade = scoring.grade(scoring.best(houses, levelDistance(), MAX_SPEED), levelPoints, score.windows + score.mailboxes)
+    levelGrade = scoring.grade(scoring.best(houses, levelDistance(), MAX_SPEED), levelPoints, score.windows + score.mailboxes + houses - score.delivered)
     runTotal = runTotal + levelPoints
     sounds.van_running:pause()
     sounds.theme:pause()
