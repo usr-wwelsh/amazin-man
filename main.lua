@@ -32,6 +32,7 @@ local DOOR = { x = 475, y = 425, w = 75, h = 205 }
 local WINDOWS = { { x = 480, y = 290, w = 80, h = 100 }, { x = 190, y = 700, w = 80, h = 110 } }
 
 local BORDER_TOP, BORDER_RIGHT = 90, 1823
+local CROSS_LEVEL = 2
 local CROSS_MIN, CROSS_MAX = 6, 10
 local GRASS_MIN, GRASS_MAX = 3, 8
 local DOUBLE_CROSS_LEVEL, DOUBLE_CROSS_CHANCE = 4, 0.35
@@ -125,7 +126,7 @@ end
 local function chunkAt(n)
     if not layout[n] then
         local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
-        local cross = crossAt(n)
+        local cross = level >= CROSS_LEVEL and crossAt(n)
         local start = n == 0
         local grass = not start and not cross and grassAt(n)
         local c = { image = start and startImage or cross and crossImage or grass and grassImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross or grass, delivered = false }
