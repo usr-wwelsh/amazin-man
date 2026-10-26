@@ -24,6 +24,8 @@ local WINDOWS = { { x = 480, y = 290, w = 80, h = 100 }, { x = 190, y = 700, w =
 
 local BORDER_TOP, BORDER_RIGHT = 90, 1823
 local CROSS_MIN, CROSS_MAX = 6, 10
+local GRASS_MIN, GRASS_MAX = 3, 8
+local DOUBLE_CROSS_LEVEL, DOUBLE_CROSS_CHANCE = 4, 0.35
 local CROSS_SPAN = 2800
 local EDGE = 512
 local LEVEL_BASE, LEVEL_STEP = 8, 2
@@ -42,6 +44,9 @@ local edgeQuad
 local carImages = {}
 local crossChunks = {}
 local lastCross = 0
+local grassChunks = {}
+local lastGrass = 0
+local grassImage
 local layout = {}
 local van = {}
 local mask
@@ -81,8 +86,20 @@ local function crossAt(n)
     while lastCross < n do
         lastCross = lastCross + love.math.random(CROSS_MIN, CROSS_MAX)
         crossChunks[lastCross] = true
+        if level >= DOUBLE_CROSS_LEVEL and love.math.random() < DOUBLE_CROSS_CHANCE then
+            lastCross = lastCross + 1
+            crossChunks[lastCross] = true
+        end
     end
     return crossChunks[n]
+end
+
+local function grassAt(n)
+    while lastGrass < n do
+        lastGrass = lastGrass + love.math.random(GRASS_MIN, GRASS_MAX)
+        grassChunks[lastGrass] = true
+    end
+    return grassChunks[n]
 end
 
 local function chunkAt(n)
@@ -90,8 +107,9 @@ local function chunkAt(n)
         local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
         local cross = crossAt(n)
         local start = n == 0
-        local c = { image = start and startImage or cross and crossImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross, delivered = false }
-        if start then
+        local grass = not start and not cross and grassAt(n)
+        local c = { image = start and startImage or cross and crossImage or grass and grassImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross or grass, delivered = false }
+        if start or grass then
         elseif cross then
             c.lanes = {}
             for i, l in ipairs(CAR_LANES) do
@@ -222,6 +240,8 @@ local function startLevel(n)
     state = "play"
     layout = {}
     crossChunks = {}
+    grassChunks = {}
+    lastGrass = 0
     lastCross = 0
     packages = {}
     ammo = levelAmmo()
@@ -428,6 +448,7 @@ function love.load()
     sounds.van_running:play()
     crossImage = love.graphics.newImage("assets/chunkCross.png")
     startImage = love.graphics.newImage("assets/chunk0.png")
+    grassImage = love.graphics.newImage("assets/chunkG1.png")
     for i = 1, 4 do
         carImages[i] = love.graphics.newImage(knockOutWhite("assets/car" .. i .. ".png"))
     end
@@ -581,8 +602,8 @@ function love.keypressed(key)
         return
     end
     if state == "name" then
-        if key == "w" or key == "up" then name[nameCursor] = scoring.cycle(name[nameCursor], 1) end
-        if key == "s" or key == "down" then name[nameCursor] = scoring.cycle(name[nameCursor], -1) end
+        if key == "w" or key == "up" then name[nameCursor] = scoring.cycle(name[nameCursor], -1) end
+        if key == "s" or key == "down" then name[nameCursor] = scoring.cycle(name[nameCursor], 1) end
         if key == "a" or key == "left" then nameCursor = math.max(1, nameCursor - 1) end
         if key == "d" or key == "right" then nameCursor = math.min(NAME_LEN, nameCursor + 1) end
         if key == "return" or key == "space" then submitName() end
