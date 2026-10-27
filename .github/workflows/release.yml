@@ -1,0 +1,83 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  LOVE_VERSION: "11.5"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y lua5.4
+      - run: lua5.4 scoring_test.lua
+      - run: lua5.4 dog_test.lua
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package .love
+        run: |
+          mkdir dist
+          zip -9 -r dist/amazin-man.love . -x ".git/*" ".github/*" "*_test.lua" "dist/*" "README.md" "LICENSE" ".gitignore"
+
+      - name: Fetch LÖVE
+        working-directory: dist
+        run: |
+          base=https://github.com/love2d/love/releases/download/${LOVE_VERSION}
+          curl -fsSLO $base/love-${LOVE_VERSION}-x86_64.AppImage
+          curl -fsSLO $base/love-${LOVE_VERSION}-win64.zip
+          curl -fsSLO $base/love-${LOVE_VERSION}-macos.zip
+
+      - name: Linux
+        working-directory: dist
+        run: |
+          cat love-${LOVE_VERSION}-x86_64.AppImage amazin-man.love > amazin-man-linux-x86_64.AppImage
+          chmod +x amazin-man-linux-x86_64.AppImage
+
+      - name: Windows
+        working-directory: dist
+        run: |
+          unzip -q love-${LOVE_VERSION}-win64.zip
+          d=love-${LOVE_VERSION}-win64
+          cat $d/love.exe amazin-man.love > $d/amazin-man.exe
+          rm $d/love.exe $d/lovec.exe $d/game.ico $d/love.ico
+          mv $d amazin-man-windows
+          zip -9 -r amazin-man-windows-x86_64.zip amazin-man-windows
+
+      - name: macOS
+        working-directory: dist
+        run: |
+          unzip -q love-${LOVE_VERSION}-macos.zip
+          cp amazin-man.love love.app/Contents/Resources/
+          mv love.app "Amazin Man.app"
+          zip -9 -r -y amazin-man-macos.zip "Amazin Man.app"
+
+      - name: Changelog
+        run: |
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          range=${prev:+$prev..}${GITHUB_REF_NAME}
+          git log --no-merges --pretty='- %s (%h)' "$range" > changelog.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/amazin-man-linux-x86_64.AppImage \
+            dist/amazin-man-windows-x86_64.zip \
+            dist/amazin-man-macos.zip \
+            --title "$GITHUB_REF_NAME" --notes-file changelog.md
