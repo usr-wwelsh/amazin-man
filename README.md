@@ -17,10 +17,6 @@ lua scoring_test.lua
 lua dog_test.lua
 ```
 
-## Releases
-
-Tagging `v*` builds Linux, Windows, and macOS binaries and publishes them with a changelog.
-
 ## License
 
 MIT
