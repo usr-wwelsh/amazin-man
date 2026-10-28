@@ -21,7 +21,6 @@ local BOARD_FILE = "scores.txt"
 local MAILBOX_CHANCE = 0.2
 local DOG_LEVEL = 3
 local DOG_GAP_MIN, DOG_GAP_MAX = 3, 8
-local SIDEWALK_LEFT = { top = 1430, bottom = 1030 }
 local SIDEWALK_RIGHT = { top = 1620, bottom = 1250 }
 local DOG_HOME = { x = 300, y = 1005 }
 local DOG_REST = { x = 440, y = 1012 }
@@ -240,14 +239,13 @@ local function cameraX(y)
     return drift(y) - (VIEW_W - CHUNK_W) / 2
 end
 
-local function vanOnSidewalk()
+local function vanProvokesDog()
     local n = math.floor(-van.y / CHUNK_H)
     local lx = van.x - DRIFT * n
     local ly = van.y + (n + 1) * CHUNK_H
     local f = ly / CHUNK_H
-    local left = SIDEWALK_LEFT.top + (SIDEWALK_LEFT.bottom - SIDEWALK_LEFT.top) * f
     local right = SIDEWALK_RIGHT.top + (SIDEWALK_RIGHT.bottom - SIDEWALK_RIGHT.top) * f
-    return lx - VAN_RADIUS <= right and lx + VAN_RADIUS >= left
+    return lx - VAN_RADIUS <= right
 end
 
 local function levelStats()
@@ -588,7 +586,7 @@ function love.update(dt)
         end
     end
 
-    local provoked = vanOnSidewalk()
+    local provoked = vanProvokesDog()
     for n, c in pairs(layout) do
         local d = c.dog
         local event = d and (math.abs(n - vn) <= 1 or d.state == "chase" or d.state == "home") and dog.update(d, dt, van.x, van.y, provoked)
