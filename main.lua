@@ -475,6 +475,171 @@ function love.keypressed(key)
     end
 end
 
+local function drawChunk(n, t, z)
+    love.graphics.setColor(1, 1, 1)
+    local c = world.chunkAt(n)
+    love.graphics.draw(c.image, edgeQuad, DRIFT * n - EDGE, -(n + 1) * CHUNK_H)
+    for _, win in ipairs(c.windows) do
+        if win.broken then love.graphics.setColor(0.4, 0.4, 0.45) end
+        drawFit(art.window, win.x, win.y, win.w, win.h)
+        love.graphics.setColor(1, 1, 1)
+        if win.broken then
+            love.graphics.setColor(0.1, 0.1, 0.1)
+            love.graphics.setLineWidth(5)
+            love.graphics.line(win.x - win.w / 2, win.y - win.h / 2, win.x, win.y, win.x + win.w / 4, win.y + win.h / 2)
+            love.graphics.line(win.x + win.w / 2, win.y - win.h / 2, win.x, win.y, win.x - win.w / 3, win.y + win.h / 2)
+            love.graphics.setColor(1, 1, 1)
+        end
+    end
+    if c.cross then
+        for _, lane in ipairs(c.lanes) do
+            for _, car in ipairs(lane.cars) do
+                drawFit(car.image, car.x, car.y, CAR_W * lane.dir, CAR_H)
+            end
+        end
+    end
+    local d = c.door
+    if d and d.delivered then
+        drawFit(art.box, d.x + d.w, d.y + d.h * 0.6, PACKAGE_SIZE, PACKAGE_SIZE * art.box:getHeight() / art.box:getWidth())
+        love.graphics.setColor(0, 0.8, 0)
+        love.graphics.circle("fill", d.x + d.w / 2, d.y - 24, 14)
+        love.graphics.setColor(1, 1, 1)
+    end
+    local m = c.mailbox
+    if m then
+        if m.down then
+            drawFit(art.mailbox, m.x, m.y + m.h / 3, m.w, m.h, 1.4)
+        else
+            drawFit(art.mailbox, m.x, m.y, m.w, m.h)
+            if m.delivered then
+                love.graphics.setColor(0, 0.8, 0)
+                love.graphics.circle("fill", m.x, m.y - m.h / 2 - 14, 10)
+            end
+        end
+    end
+    love.graphics.setColor(1, 1, 1)
+    if c.dogHome then drawFit(dogImages.doghome, c.dogHome.x, c.dogHome.y, DOG_HOME_SIZE, DOG_HOME_SIZE) end
+    if t > 0 then drawMarkers(c, 7 / z, t) end
+end
+
+local function drawDogs()
+    for _, c in pairs(world.layout()) do
+        local d = c.dog
+        if d then
+            local frame = d.state == "bark" and "dogbark" or (d.state == "chase" or d.state == "home") and (math.floor(love.timer.getTime() * 10) % 2 == 0 and "dogrun1" or "dogrun2") or "dogsleep"
+            drawFit(dogImages[frame], d.x, d.y, DOG_SIZE * d.dir, DOG_SIZE)
+        end
+    end
+end
+
+local function drawPackages()
+    for _, pk in ipairs(packages) do
+        drawFit(art.box, pk.x, pk.y, PACKAGE_SIZE, PACKAGE_SIZE * art.box:getHeight() / art.box:getWidth())
+    end
+    love.graphics.setColor(1, 1, 1)
+end
+
+local function drawVan()
+    if van.slowT and van.slowT > 0 then love.graphics.setColor(1, 0.55, 0.55) end
+    if not van.gone then love.graphics.draw(van.image, van.x, van.y, van.angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2) end
+end
+
+local function drawBorder()
+    love.graphics.setShader(borderShader)
+    borderShader:send("time", love.timer.getTime())
+    love.graphics.draw(border, 0, 0, 0, CHUNK_W / border:getWidth(), CHUNK_H / border:getHeight())
+    love.graphics.setShader()
+    love.graphics.setColor(1, 1, 1)
+end
+
+local function drawCounter()
+    local label = "packages  " .. ammo
+    local tw, th, pad, right, top = fonts.counter:getWidth(label), fonts.counter:getHeight(), 16, BORDER_RIGHT, BORDER_TOP
+    love.graphics.setFont(fonts.counter)
+    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.rectangle("fill", right - tw - pad * 2, top, tw + pad * 2, th + pad)
+    if ammo == 0 then love.graphics.setColor(0.9, 0.15, 0.15) else love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) end
+    love.graphics.print(label, right - tw - pad, top + pad / 2)
+end
+
+local function drawSummary()
+    local st = levelStats()
+    love.graphics.setFont(fonts.title)
+    love.graphics.print("LEVEL " .. level .. " COMPLETE", 130, 200)
+    love.graphics.setFont(fonts.body)
+    local rows = {
+        { "deliveries", string.format("%d / %d", st.housesDone, st.houses), st.housesDone * scoring.DELIVERY, { 0.2, 0.9, 0.3 } },
+        { "broken windows", tostring(st.windows), -st.windows * scoring.WINDOW, { 0.95, 0.25, 0.25 } },
+        { "mailboxes crushed", tostring(st.crushed), -st.crushed * scoring.MAILBOX, { 1, 0.6, 0.1 } },
+        { "time bonus", nil, levelBonus, { 0.3, 0.8, 1 } },
+    }
+    for i, r in ipairs(rows) do
+        local y = 290 + (i - 1) * 44
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(r[1], 130, y)
+        if r[2] then love.graphics.printf(r[2], 400, y, 170, "right") end
+        if i == 4 then
+            for k = 1, 3 do drawStar(460 + (k - 1) * 45, y + 17, 18, k <= levelStars, r[4]) end
+        end
+        love.graphics.setColor(r[4])
+        love.graphics.printf(string.format("%+d", r[3]), 590, y, 160, "right")
+    end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.rectangle("fill", 130, 480, 620, 3)
+    love.graphics.print("level score", 130, 495)
+    love.graphics.printf(tostring(levelPoints), 590, 495, 160, "right")
+    love.graphics.setFont(fonts.counter)
+    love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1))
+    love.graphics.print("TOTAL", 130, 555)
+    love.graphics.printf(tostring(runTotal), 520, 555, 230, "right")
+    love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1))
+    love.graphics.setFont(fonts.title)
+    love.graphics.printf("GRADE", 1100, 240, 700, "center")
+    love.graphics.setFont(fonts.grade)
+    love.graphics.printf(levelGrade, 1100, 290, 700, "center")
+    love.graphics.setFont(fonts.body)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(level >= RUN_LEVELS and "space - enter name" or "space - next level", 130, 650)
+    love.graphics.setFont(fonts.default)
+end
+
+local function drawNameEntry()
+    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.rectangle("fill", 0, 0, CHUNK_W, CHUNK_H)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(fonts.title)
+    love.graphics.printf("RUN COMPLETE  " .. runTotal, 0, 220, CHUNK_W, "center")
+    love.graphics.setFont(fonts.counter)
+    local cell = 90
+    local x0 = (CHUNK_W - cell * NAME_LEN) / 2
+    for i = 1, NAME_LEN do
+        if i == nameCursor then love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) else love.graphics.setColor(1, 1, 1) end
+        love.graphics.printf(name[i], x0 + (i - 1) * cell, 440, cell, "center")
+        if i == nameCursor then love.graphics.rectangle("fill", x0 + (i - 1) * cell + 15, 500, cell - 30, 6) end
+    end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(fonts.body)
+    love.graphics.printf("w/s letter - a/d move - space confirm", 0, 640, CHUNK_W, "center")
+    love.graphics.setFont(fonts.default)
+end
+
+local function drawBoard()
+    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.rectangle("fill", 0, 0, CHUNK_W, CHUNK_H)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(fonts.title)
+    love.graphics.printf("LEADERBOARD", 0, 130, CHUNK_W, "center")
+    love.graphics.setFont(fonts.body)
+    for i, e in ipairs(board) do
+        if i == boardRank then love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) else love.graphics.setColor(1, 1, 1) end
+        love.graphics.printf(string.format("%2d.  %s", i, e.name), 600, 230 + (i - 1) * 54, 400, "left")
+        love.graphics.printf(tostring(e.score), 900, 230 + (i - 1) * 54, 300, "right")
+    end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.printf("space - new run", 0, 850, CHUNK_W, "center")
+    love.graphics.setFont(fonts.default)
+end
+
 function love.draw()
     local w, h = love.graphics.getDimensions()
     local scale = math.min(w / CHUNK_W, h / CHUNK_H)
@@ -492,158 +657,26 @@ function love.draw()
 
     local first = math.max(0, math.floor(-(camY + CHUNK_H / z) / CHUNK_H))
     for n = first, math.min(levelLen - 1, math.floor(-camY / CHUNK_H)) do
-        love.graphics.setColor(1, 1, 1)
-        local c = world.chunkAt(n)
-        love.graphics.draw(c.image, edgeQuad, DRIFT * n - EDGE, -(n + 1) * CHUNK_H)
-        for _, win in ipairs(c.windows) do
-            if win.broken then love.graphics.setColor(0.4, 0.4, 0.45) end
-            drawFit(art.window, win.x, win.y, win.w, win.h)
-            love.graphics.setColor(1, 1, 1)
-            if win.broken then
-                love.graphics.setColor(0.1, 0.1, 0.1)
-                love.graphics.setLineWidth(5)
-                love.graphics.line(win.x - win.w / 2, win.y - win.h / 2, win.x, win.y, win.x + win.w / 4, win.y + win.h / 2)
-                love.graphics.line(win.x + win.w / 2, win.y - win.h / 2, win.x, win.y, win.x - win.w / 3, win.y + win.h / 2)
-                love.graphics.setColor(1, 1, 1)
-            end
-        end
-        if c.cross then
-            for _, lane in ipairs(c.lanes) do
-                for _, car in ipairs(lane.cars) do
-                    drawFit(car.image, car.x, car.y, CAR_W * lane.dir, CAR_H)
-                end
-            end
-        end
-        local d = c.door
-        if d and d.delivered then
-            drawFit(art.box, d.x + d.w, d.y + d.h * 0.6, PACKAGE_SIZE, PACKAGE_SIZE * art.box:getHeight() / art.box:getWidth())
-            love.graphics.setColor(0, 0.8, 0)
-            love.graphics.circle("fill", d.x + d.w / 2, d.y - 24, 14)
-            love.graphics.setColor(1, 1, 1)
-        end
-        local m = c.mailbox
-        if m then
-            if m.down then
-                drawFit(art.mailbox, m.x, m.y + m.h / 3, m.w, m.h, 1.4)
-            else
-                drawFit(art.mailbox, m.x, m.y, m.w, m.h)
-                if m.delivered then
-                    love.graphics.setColor(0, 0.8, 0)
-                    love.graphics.circle("fill", m.x, m.y - m.h / 2 - 14, 10)
-                end
-            end
-        end
-        love.graphics.setColor(1, 1, 1)
-        if c.dogHome then drawFit(dogImages.doghome, c.dogHome.x, c.dogHome.y, DOG_HOME_SIZE, DOG_HOME_SIZE) end
-        if t > 0 then drawMarkers(c, 7 / z, t) end
+        drawChunk(n, t, z)
     end
-    for _, c in pairs(world.layout()) do
-        local d = c.dog
-        if d then
-            local frame = d.state == "bark" and "dogbark" or (d.state == "chase" or d.state == "home") and (math.floor(love.timer.getTime() * 10) % 2 == 0 and "dogrun1" or "dogrun2") or "dogsleep"
-            drawFit(dogImages[frame], d.x, d.y, DOG_SIZE * d.dir, DOG_SIZE)
-        end
-    end
-
-    for _, pk in ipairs(packages) do
-        drawFit(art.box, pk.x, pk.y, PACKAGE_SIZE, PACKAGE_SIZE * art.box:getHeight() / art.box:getWidth())
-    end
-    love.graphics.setColor(1, 1, 1)
-
-    if van.slowT and van.slowT > 0 then love.graphics.setColor(1, 0.55, 0.55) end
-    if not van.gone then love.graphics.draw(van.image, van.x, van.y, van.angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2) end
+    drawDogs()
+    drawPackages()
+    drawVan()
 
     love.graphics.origin()
     love.graphics.translate((w - CHUNK_W * scale) / 2, (h - CHUNK_H * scale) / 2)
     love.graphics.scale(scale)
-    love.graphics.setShader(borderShader)
-    borderShader:send("time", love.timer.getTime())
-    love.graphics.draw(border, 0, 0, 0, CHUNK_W / border:getWidth(), CHUNK_H / border:getHeight())
-    love.graphics.setShader()
+    drawBorder()
     love.graphics.setColor(1, 1, 1)
-    if state == "play" or state == "exit" then
-        local label = "packages  " .. ammo
-        local tw, th, pad, right, top = fonts.counter:getWidth(label), fonts.counter:getHeight(), 16, BORDER_RIGHT, BORDER_TOP
-        love.graphics.setFont(fonts.counter)
-        love.graphics.setColor(0, 0, 0, 0.85)
-        love.graphics.rectangle("fill", right - tw - pad * 2, top, tw + pad * 2, th + pad)
-        if ammo == 0 then love.graphics.setColor(0.9, 0.15, 0.15) else love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) end
-        love.graphics.print(label, right - tw - pad, top + pad / 2)
-    end
+    if state == "play" or state == "exit" then drawCounter() end
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(fonts.default)
     if state == "summary" then
-        local st = levelStats()
-        love.graphics.setFont(fonts.title)
-        love.graphics.print("LEVEL " .. level .. " COMPLETE", 130, 200)
-        love.graphics.setFont(fonts.body)
-        local rows = {
-            { "deliveries", string.format("%d / %d", st.housesDone, st.houses), st.housesDone * scoring.DELIVERY, { 0.2, 0.9, 0.3 } },
-            { "broken windows", tostring(st.windows), -st.windows * scoring.WINDOW, { 0.95, 0.25, 0.25 } },
-            { "mailboxes crushed", tostring(st.crushed), -st.crushed * scoring.MAILBOX, { 1, 0.6, 0.1 } },
-            { "time bonus", nil, levelBonus, { 0.3, 0.8, 1 } },
-        }
-        for i, r in ipairs(rows) do
-            local y = 290 + (i - 1) * 44
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.print(r[1], 130, y)
-            if r[2] then love.graphics.printf(r[2], 400, y, 170, "right") end
-            if i == 4 then
-                for k = 1, 3 do drawStar(460 + (k - 1) * 45, y + 17, 18, k <= levelStars, r[4]) end
-            end
-            love.graphics.setColor(r[4])
-            love.graphics.printf(string.format("%+d", r[3]), 590, y, 160, "right")
-        end
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.rectangle("fill", 130, 480, 620, 3)
-        love.graphics.print("level score", 130, 495)
-        love.graphics.printf(tostring(levelPoints), 590, 495, 160, "right")
-        love.graphics.setFont(fonts.counter)
-        love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1))
-        love.graphics.print("TOTAL", 130, 555)
-        love.graphics.printf(tostring(runTotal), 520, 555, 230, "right")
-        love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1))
-        love.graphics.setFont(fonts.title)
-        love.graphics.printf("GRADE", 1100, 240, 700, "center")
-        love.graphics.setFont(fonts.grade)
-        love.graphics.printf(levelGrade, 1100, 290, 700, "center")
-        love.graphics.setFont(fonts.body)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(level >= RUN_LEVELS and "space - enter name" or "space - next level", 130, 650)
-        love.graphics.setFont(fonts.default)
+        drawSummary()
     elseif state == "name" then
-        love.graphics.setColor(0, 0, 0, 0.85)
-        love.graphics.rectangle("fill", 0, 0, CHUNK_W, CHUNK_H)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.setFont(fonts.title)
-        love.graphics.printf("RUN COMPLETE  " .. runTotal, 0, 220, CHUNK_W, "center")
-        love.graphics.setFont(fonts.counter)
-        local cell = 90
-        local x0 = (CHUNK_W - cell * NAME_LEN) / 2
-        for i = 1, NAME_LEN do
-            if i == nameCursor then love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) else love.graphics.setColor(1, 1, 1) end
-            love.graphics.printf(name[i], x0 + (i - 1) * cell, 440, cell, "center")
-            if i == nameCursor then love.graphics.rectangle("fill", x0 + (i - 1) * cell + 15, 500, cell - 30, 6) end
-        end
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.setFont(fonts.body)
-        love.graphics.printf("w/s letter - a/d move - space confirm", 0, 640, CHUNK_W, "center")
-        love.graphics.setFont(fonts.default)
+        drawNameEntry()
     elseif state == "board" then
-        love.graphics.setColor(0, 0, 0, 0.85)
-        love.graphics.rectangle("fill", 0, 0, CHUNK_W, CHUNK_H)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.setFont(fonts.title)
-        love.graphics.printf("LEADERBOARD", 0, 130, CHUNK_W, "center")
-        love.graphics.setFont(fonts.body)
-        for i, e in ipairs(board) do
-            if i == boardRank then love.graphics.setColor(hue((love.timer.getTime() * 0.15) % 1)) else love.graphics.setColor(1, 1, 1) end
-            love.graphics.printf(string.format("%2d.  %s", i, e.name), 600, 230 + (i - 1) * 54, 400, "left")
-            love.graphics.printf(tostring(e.score), 900, 230 + (i - 1) * 54, 300, "right")
-        end
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.printf("space - new run", 0, 850, CHUNK_W, "center")
-        love.graphics.setFont(fonts.default)
+        drawBoard()
     end
     love.graphics.origin()
     love.graphics.setScissor()
