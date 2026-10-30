@@ -16,13 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y lua5.4
-      - run: lua5.4 scoring_test.lua
-      - run: lua5.4 dog_test.lua
-      - run: lua5.4 world_test.lua
-      - run: lua5.4 camera_test.lua
-      - run: lua5.4 van_test.lua
-      - run: lua5.4 parcels_test.lua
-      - run: lua5.4 game_test.lua
+      - run: LUA=lua5.4 tests/run.sh
 
   release:
     needs: test
@@ -37,7 +31,7 @@ jobs:
       - name: Package .love
         run: |
           mkdir dist
-          zip -9 -r dist/amazin-man.love . -x ".git/*" ".github/*" "*_test.lua" "dist/*" "README.md" "LICENSE" ".gitignore"
+          zip -9 -r dist/amazin-man.love . -x ".git/*" ".github/*" "tests/*" "docs/*" "dist/*" "README.md" "LICENSE" ".gitignore"
 
       - name: Fetch LÖVE
         working-directory: dist

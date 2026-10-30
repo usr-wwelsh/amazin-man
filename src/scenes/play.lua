@@ -1,10 +1,10 @@
-local world = require("world")
-local game = require("game")
-local van = require("van")
-local parcels = require("parcels")
-local audio = require("audio")
-local view = require("view")
-local scene = require("scene")
+local world = require("src.world")
+local game = require("src.game")
+local van = require("src.van")
+local parcels = require("src.parcels")
+local audio = require("src.audio")
+local view = require("src.view")
+local scene = require("src.scene")
 
 local play = {}
 

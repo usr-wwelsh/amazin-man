@@ -1,7 +1,7 @@
-local world = require("world")
-local camera = require("camera")
-local game = require("game")
-local parcels = require("parcels")
+local world = require("src.world")
+local camera = require("src.camera")
+local game = require("src.game")
+local parcels = require("src.parcels")
 
 local CHUNK_W, CHUNK_H, DRIFT, EDGE, CAR_W, CAR_H = world.CHUNK_W, world.CHUNK_H, world.DRIFT, world.EDGE, world.CAR_W, world.CAR_H
 local VAN_SCALE = 3.5
@@ -173,7 +173,7 @@ function view.load(loaded)
     dogImages, art, fonts = loaded.dogs, loaded.art, loaded.fonts
     view.fonts = fonts
     edgeQuad = love.graphics.newQuad(-EDGE, 0, CHUNK_W + EDGE, CHUNK_H, CHUNK_W, CHUNK_H)
-    border = love.graphics.newImage("assets/border.png")
+    border = love.graphics.newImage("assets/img/border.png")
     borderShader = love.graphics.newShader(BORDER_SHADER)
     borderShader:send("size", { border:getWidth(), border:getHeight() })
 end

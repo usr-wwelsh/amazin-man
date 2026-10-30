@@ -1,6 +1,6 @@
-local world = require("world")
-local game = require("game")
-local van = require("van")
+local world = require("src.world")
+local game = require("src.game")
+local van = require("src.van")
 
 local function eq(a, b, name)
     if a ~= b then

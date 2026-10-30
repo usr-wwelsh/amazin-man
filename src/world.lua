@@ -1,4 +1,4 @@
-local dog = require("dog")
+local dog = require("src.dog")
 
 local world = {
     CHUNK_W = 1920,

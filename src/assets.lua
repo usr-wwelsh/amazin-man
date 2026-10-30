@@ -27,27 +27,27 @@ end
 function assets.load()
     local a = { world = { chunks = {}, cars = {} }, dogs = {}, art = {}, fonts = {} }
     for i = 1, 4 do
-        a.world.chunks[i] = love.graphics.newImage("assets/chunk" .. i .. ".png")
+        a.world.chunks[i] = love.graphics.newImage("assets/img/chunk" .. i .. ".png")
     end
-    a.world.cross = love.graphics.newImage("assets/chunkCross.png")
-    a.world.start = love.graphics.newImage("assets/chunk0.png")
-    a.world.grass = love.graphics.newImage("assets/chunkG1.png")
+    a.world.cross = love.graphics.newImage("assets/img/chunkCross.png")
+    a.world.start = love.graphics.newImage("assets/img/chunk0.png")
+    a.world.grass = love.graphics.newImage("assets/img/chunkG1.png")
     for i = 1, 4 do
-        a.world.cars[i] = love.graphics.newImage(knockOutWhite("assets/car" .. i .. ".png"))
+        a.world.cars[i] = love.graphics.newImage(knockOutWhite("assets/img/car" .. i .. ".png"))
     end
-    a.van = love.graphics.newImage("assets/van.png")
+    a.van = love.graphics.newImage("assets/img/van.png")
     for _, name in ipairs({ "dogsleep", "dogbark", "dogrun1", "dogrun2", "doghome" }) do
-        a.dogs[name] = love.graphics.newImage(knockOutWhite("assets/" .. name .. ".png"))
+        a.dogs[name] = love.graphics.newImage(knockOutWhite("assets/img/" .. name .. ".png"))
     end
     for _, name in ipairs({ "window", "mailbox", "box" }) do
-        a.art[name] = love.graphics.newImage("assets/" .. name .. ".png")
+        a.art[name] = love.graphics.newImage("assets/img/" .. name .. ".png")
     end
     a.fonts.default = love.graphics.getFont()
     a.fonts.title = love.graphics.newFont(44)
     a.fonts.body = love.graphics.newFont(26)
     a.fonts.counter = love.graphics.newFont(40)
     a.fonts.grade = love.graphics.newFont(300)
-    a.mask = love.image.newImageData("assets/chunk1.png")
+    a.mask = love.image.newImageData("assets/img/chunk1.png")
     return a
 end
 

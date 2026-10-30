@@ -1,4 +1,4 @@
-local dog = dofile("dog.lua")
+local dog = dofile("src/dog.lua")
 
 local function eq(a, b, name)
     if a ~= b then

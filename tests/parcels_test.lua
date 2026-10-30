@@ -1,5 +1,5 @@
-local world = require("world")
-local parcels = require("parcels")
+local world = require("src.world")
+local parcels = require("src.parcels")
 
 local function eq(a, b, name)
     if a ~= b then

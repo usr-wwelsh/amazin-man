@@ -1,4 +1,4 @@
-local van = require("van")
+local van = require("src.van")
 
 local audio = { sounds = {} }
 local sounds = audio.sounds
@@ -47,11 +47,11 @@ end
 
 function audio.load()
     for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "dogbark", "start1", "start2", "start3", "start4", "start5", "van_running", "watchwheregoing", "window_crash" }) do
-        sounds[name] = love.audio.newSource("sounds/" .. name .. ".ogg", "static")
+        sounds[name] = love.audio.newSource("assets/sfx/" .. name .. ".ogg", "static")
     end
     for _, group in ipairs({ { EXIT_VOICES, exitVoices }, { HOUSE_CRASH_VOICES, houseCrashVoices } }) do
         for _, voice in ipairs(group[1]) do
-            local path = "sounds/" .. voice .. ".ogg"
+            local path = "assets/sfx/" .. voice .. ".ogg"
             if love.filesystem.getInfo(path) then
                 sounds[voice] = love.audio.newSource(path, "static")
                 group[2][#group[2] + 1] = voice
@@ -59,16 +59,16 @@ function audio.load()
         end
     end
     sounds.dogbark:setVolume(0.3)
-    sounds.ambience = love.audio.newSource("sounds/ambience.ogg", "stream")
+    sounds.ambience = love.audio.newSource("assets/sfx/ambience.ogg", "stream")
     sounds.ambience:setLooping(true)
     sounds.ambience:setVolume(0.5)
     sounds.ambience:play()
-    sounds.theme = love.audio.newSource("sounds/amazin.ogg", "stream")
+    sounds.theme = love.audio.newSource("assets/sfx/amazin.ogg", "stream")
     sounds.theme:setLooping(true)
     sounds.theme:setVolume(0.85)
     sounds.theme:setPitch(0.8)
     sounds.theme:play()
-    sounds.summary = love.audio.newSource("sounds/amazindrum.ogg", "stream")
+    sounds.summary = love.audio.newSource("assets/sfx/amazindrum.ogg", "stream")
     sounds.summary:setLooping(true)
     sounds.summary:setVolume(0.85)
     sounds.summary:setPitch(0.8)

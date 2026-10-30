@@ -1,6 +1,6 @@
-local game = require("game")
-local audio = require("audio")
-local scene = require("scene")
+local game = require("src.game")
+local audio = require("src.audio")
+local scene = require("src.scene")
 
 local zoom = { overview = true }
 

@@ -1,5 +1,5 @@
-local world = require("world")
-local camera = require("camera")
+local world = require("src.world")
+local camera = require("src.camera")
 
 local CHUNK_H, DRIFT = world.CHUNK_H, world.DRIFT
 

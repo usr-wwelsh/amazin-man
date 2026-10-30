@@ -1,4 +1,4 @@
-local world = require("world")
+local world = require("src.world")
 
 local parcels = {
     SPEED = 650,

@@ -1,4 +1,4 @@
-local scoring = dofile("scoring.lua")
+local scoring = dofile("src/scoring.lua")
 
 local function eq(a, b, name)
     if a ~= b then

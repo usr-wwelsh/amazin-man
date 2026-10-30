@@ -4,7 +4,7 @@
 
 Modern Paperboy. Built with [LÖVE](https://love2d.org) for an arcade machine I'm making with friends.
 
-![Demo](demo.gif)
+![Demo](docs/demo.gif)
 
 ## Run
 
@@ -15,7 +15,7 @@ love .
 ## Test
 
 ```
-./test.sh
+./tests/run.sh
 ```
 
 ## License

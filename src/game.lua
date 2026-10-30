@@ -1,7 +1,7 @@
-local world = require("world")
-local scoring = require("scoring")
-local van = require("van")
-local parcels = require("parcels")
+local world = require("src.world")
+local scoring = require("src.scoring")
+local van = require("src.van")
+local parcels = require("src.parcels")
 
 local game = {
     AMMO_START = 15,

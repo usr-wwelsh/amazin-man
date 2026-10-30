@@ -1,4 +1,4 @@
-local scoring = require("scoring")
+local scoring = require("src.scoring")
 
 local BOARD_FILE = "scores.txt"
 

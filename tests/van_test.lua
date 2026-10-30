@@ -1,6 +1,6 @@
-local world = require("world")
-local camera = require("camera")
-local van = require("van")
+local world = require("src.world")
+local camera = require("src.camera")
+local van = require("src.van")
 
 local function eq(a, b, name)
     if a ~= b then

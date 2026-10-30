@@ -1,9 +1,9 @@
-local world = require("world")
-local scoring = require("scoring")
-local game = require("game")
-local leaderboard = require("leaderboard")
-local view = require("view")
-local scene = require("scene")
+local world = require("src.world")
+local scoring = require("src.scoring")
+local game = require("src.game")
+local leaderboard = require("src.leaderboard")
+local view = require("src.view")
+local scene = require("src.scene")
 
 local name = { overview = true }
 

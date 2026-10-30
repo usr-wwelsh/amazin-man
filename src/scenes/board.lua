@@ -1,7 +1,7 @@
-local world = require("world")
-local game = require("game")
-local view = require("view")
-local scene = require("scene")
+local world = require("src.world")
+local game = require("src.game")
+local view = require("src.view")
+local scene = require("src.scene")
 
 local board = { overview = true }
 

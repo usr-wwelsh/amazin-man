@@ -1,4 +1,4 @@
-local world = dofile("world.lua")
+local world = require("src.world")
 
 local function eq(a, b, name)
     if a ~= b then
@@ -70,7 +70,7 @@ eq(#lane.cars, 0, "cars leave past the lane end")
 setup(1, 20)
 eq(not world.chunkAt(6).cross, true, "no cross chunks on level 1")
 
-local dog = dofile("dog.lua")
+local dog = dofile("src/dog.lua")
 
 setup(1, 10)
 local before = world.stats()
