@@ -15,8 +15,7 @@ love .
 ## Test
 
 ```
-lua scoring_test.lua
-lua dog_test.lua
+./test.sh
 ```
 
 ## License
