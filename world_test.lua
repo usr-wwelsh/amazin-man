@@ -69,3 +69,39 @@ eq(#lane.cars, 0, "cars leave past the lane end")
 
 setup(1, 20)
 eq(not world.chunkAt(6).cross, true, "no cross chunks on level 1")
+
+local dog = dofile("dog.lua")
+
+setup(1, 10)
+local before = world.stats()
+local doorChunk
+for n = 0, 9 do
+    if world.chunkAt(n).door then doorChunk = world.chunkAt(n) break end
+end
+doorChunk.delivered = true
+doorChunk.windows[1].broken = true
+local after = world.stats()
+eq(after.housesDone, before.housesDone + 1, "stats counts delivered houses")
+eq(after.windows, before.windows + 1, "stats counts broken windows")
+eq(after.crushed, 0, "stats starts with no crushed mailboxes")
+
+setup(1, 10)
+local mailbox = world.chunkAt(1).mailbox
+eq(world.crush(mailbox.x, mailbox.y), 1, "van over a mailbox crushes it")
+eq(mailbox.down, true, "crushed mailbox is down")
+eq(world.crush(mailbox.x, mailbox.y), 0, "a crushed mailbox is not crushed twice")
+eq(world.stats().crushed, 1, "stats counts crushed mailboxes")
+
+eq(world.provokes(1000, -540), true, "van near the sidewalk provokes dogs")
+eq(world.provokes(1600, -540), false, "van far from the sidewalk leaves dogs alone")
+
+setup(1, 10)
+local vx, vy = world.DRIFT + 500, -1500
+world.chunkAt(1).dog = dog.new(vx + 100, vy, vx + 100, vy)
+local events = world.updateDogs(1 / 60, vx, vy, false)
+eq(events[1], "bark", "nearby dog barks")
+world.chunkAt(1).dog.state = "chase"
+events = world.updateDogs(1 / 60, vx, vy, false)
+eq(events[1], "bite", "chasing dog bites when close")
+world.chunkAt(1).dog = dog.new(vx + 100, vy, vx + 100, vy)
+eq(#world.updateDogs(1 / 60, vx, vy + 1080 * 5, false), 0, "far dogs stay asleep")

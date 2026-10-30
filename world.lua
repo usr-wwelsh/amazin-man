@@ -24,6 +24,7 @@ local CROSS_LEVEL = 2
 local CROSS_MIN, CROSS_MAX = 6, 10
 local GRASS_MIN, GRASS_MAX = 3, 8
 local DOUBLE_CROSS_LEVEL, DOUBLE_CROSS_CHANCE = 4, 0.35
+local SIDEWALK_RIGHT = { top = 1620, bottom = 1250 }
 local CROSS_SPAN = 2800
 local CAR_SPEED_MIN, CAR_SPEED_MAX = 420, 580
 local CAR_GAP_MIN, CAR_GAP_MAX = 1.3, 3.2
@@ -172,5 +173,54 @@ world.vanBlocked = vanBlocked
 world.circleHitsMailbox = circleHitsMailbox
 world.updateCars = updateCars
 world.carHit = carHit
+
+function world.stats()
+    local st = { houses = 0, housesDone = 0, windows = 0, crushed = 0 }
+    for n = 0, levelLen - 1 do
+        local c = chunkAt(n)
+        if c.door then
+            st.houses = st.houses + 1
+            if c.delivered then st.housesDone = st.housesDone + 1 end
+        end
+        for _, win in ipairs(c.windows) do
+            if win.broken then st.windows = st.windows + 1 end
+        end
+        if c.mailbox and c.mailbox.down then st.crushed = st.crushed + 1 end
+    end
+    return st
+end
+
+function world.provokes(x, y)
+    local n = math.floor(-y / CHUNK_H)
+    local lx = x - DRIFT * n
+    local ly = y + (n + 1) * CHUNK_H
+    local f = ly / CHUNK_H
+    local right = SIDEWALK_RIGHT.top + (SIDEWALK_RIGHT.bottom - SIDEWALK_RIGHT.top) * f
+    return lx - VAN_RADIUS <= right
+end
+
+function world.crush(x, y)
+    local crushed = 0
+    local vn = math.floor(-y / CHUNK_H)
+    for n = math.max(0, vn - 1), vn + 1 do
+        local m = chunkAt(n).mailbox
+        if m and not m.down and circleHitsMailbox(m, x, y, VAN_RADIUS) then
+            m.down = true
+            crushed = crushed + 1
+        end
+    end
+    return crushed
+end
+
+function world.updateDogs(dt, vx, vy, provoked)
+    local events = {}
+    local vn = math.floor(-vy / CHUNK_H)
+    for n, c in pairs(layout) do
+        local d = c.dog
+        local event = d and (math.abs(n - vn) <= 1 or d.state == "chase" or d.state == "home") and dog.update(d, dt, vx, vy, provoked)
+        if event then events[#events + 1] = event end
+    end
+    return events
+end
 
 return world
