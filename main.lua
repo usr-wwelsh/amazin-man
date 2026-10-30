@@ -312,34 +312,19 @@ function love.load()
     reset()
 end
 
-function love.update(dt)
-    if state == "exit" then
-        world.updateCars(dt, math.floor(-van.y / CHUNK_H))
-        van.angle = van.angle + (MAX_TILT - van.angle) * math.min(1, TILT_RATE * dt)
-        van.x = van.x + EXIT_SPEED * dt + DRIFT * van.speed * dt / CHUNK_H
-        van.y = van.y - van.speed * dt
-        sounds.van_running:setPitch(0.6 + 0.8 * van.speed / MAX_SPEED)
-        if van.x > cameraX(van.y) + VIEW_W + VAN_RADIUS * 2 then
-            van.gone = true
-            finishLevel(not exitComplete)
-        end
-        return
-    end
-    if state ~= "play" then
-        if state == "zoom" then
-            zoomT = math.min(1, zoomT + dt / ZOOM_TIME)
-            if zoomT == 1 then state = "summary" end
-        end
-        return
-    end
-    if startDelay > 0 then
-        startDelay = startDelay - dt
-        return
-    end
-    elapsed = elapsed + dt
-    cooldown = math.max(0, cooldown - dt)
+local function updateExit(dt)
     world.updateCars(dt, math.floor(-van.y / CHUNK_H))
-    van.slowT = math.max(0, (van.slowT or 0) - dt)
+    van.angle = van.angle + (MAX_TILT - van.angle) * math.min(1, TILT_RATE * dt)
+    van.x = van.x + EXIT_SPEED * dt + DRIFT * van.speed * dt / CHUNK_H
+    van.y = van.y - van.speed * dt
+    sounds.van_running:setPitch(0.6 + 0.8 * van.speed / MAX_SPEED)
+    if van.x > cameraX(van.y) + VIEW_W + VAN_RADIUS * 2 then
+        van.gone = true
+        finishLevel(not exitComplete)
+    end
+end
+
+local function updateVan(dt)
     local down = love.keyboard.isDown
     if down("up", "w") then
         van.speed = math.min(MAX_SPEED, van.speed + ACCEL * dt)
@@ -363,12 +348,12 @@ function love.update(dt)
     if hitX or hitY then
         play("thatsmycar")
         finishLevel(true)
-        return
+    return true
     end
     if houseX or houseY then
         if #houseCrashVoices > 0 then playOneOf(houseCrashVoices) end
         finishLevel(true)
-        return
+    return true
     end
     sounds.van_running:setPitch(0.6 + 0.8 * van.speed / MAX_SPEED)
     if blockedY or hitY then
@@ -376,8 +361,10 @@ function love.update(dt)
     else
         van.y = ny
     end
+    return false
+end
 
-    local vn = math.floor(-van.y / CHUNK_H)
+local function updateMailboxes(vn)
     for n = math.max(0, vn - 1), vn + 1 do
         local m = world.chunkAt(n).mailbox
         if m and not m.down and world.circleHitsMailbox(m, van.x, van.y, VAN_RADIUS) then
@@ -386,7 +373,9 @@ function love.update(dt)
             score.mailboxes = score.mailboxes + 1
         end
     end
+end
 
+local function updateDogs(dt, vn)
     local provoked = vanProvokesDog()
     for n, c in pairs(world.layout()) do
         local d = c.dog
@@ -397,7 +386,9 @@ function love.update(dt)
             van.slowT = SLOW_TIME
         end
     end
+end
 
+local function updatePackages(dt)
     for i = #packages, 1, -1 do
         local pk = packages[i]
         pk.x = pk.x + pk.vx * dt
@@ -441,6 +432,33 @@ function love.update(dt)
         end
         if gone then table.remove(packages, i) end
     end
+end
+
+function love.update(dt)
+    if state == "exit" then
+        updateExit(dt)
+        return
+    end
+    if state ~= "play" then
+        if state == "zoom" then
+            zoomT = math.min(1, zoomT + dt / ZOOM_TIME)
+            if zoomT == 1 then state = "summary" end
+        end
+        return
+    end
+    if startDelay > 0 then
+        startDelay = startDelay - dt
+        return
+    end
+    elapsed = elapsed + dt
+    cooldown = math.max(0, cooldown - dt)
+    world.updateCars(dt, math.floor(-van.y / CHUNK_H))
+    van.slowT = math.max(0, (van.slowT or 0) - dt)
+    if updateVan(dt) then return end
+    local vn = math.floor(-van.y / CHUNK_H)
+    updateMailboxes(vn)
+    updateDogs(dt, vn)
+    updatePackages(dt)
 
     if van.y <= -levelLen * CHUNK_H then
         finishLevel()
