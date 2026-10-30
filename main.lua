@@ -1,11 +1,9 @@
+local world = require("world")
 local scoring = require("scoring")
 local dog = require("dog")
 
-local CHUNK_W, CHUNK_H = 1920, 1080
-local HOUSE_W = 800
-local VAN_RADIUS = 80
+local CHUNK_W, CHUNK_H, DRIFT, VAN_RADIUS, EDGE, CAR_W, CAR_H = world.CHUNK_W, world.CHUNK_H, world.DRIFT, world.VAN_RADIUS, world.EDGE, world.CAR_W, world.CAR_H
 local MARGIN = 160
-local DRIFT = 402
 local MAX_SPEED, MIN_SPEED, ACCEL, BRAKE, STEER = 480, 160, 320, 600, 340
 local ZOOM = 0.7
 local MAX_TILT, TILT_RATE = 0.35, 8
@@ -18,50 +16,19 @@ local RUN_LEVELS = 8
 local EXIT_SPEED = 700
 local NAME_LEN = 5
 local BOARD_FILE = "scores.txt"
-local MAILBOX_CHANCE = 0.2
-local DOG_LEVEL = 3
-local DOG_GAP_MIN, DOG_GAP_MAX = 3, 8
 local SIDEWALK_RIGHT = { top = 1620, bottom = 1250 }
-local DOG_HOME = { x = 300, y = 1005 }
-local DOG_REST = { x = 440, y = 1012 }
 local DOG_SIZE, DOG_HOME_SIZE = 200, 240
 local SLOW_TIME, SLOW_SPEED = 2.5, 256
-local MAILBOX = { x = 1000, y = 430, w = 66, h = 104 }
-local DOOR = { x = 475, y = 425, w = 75, h = 205 }
-local WINDOWS = { { x = 480, y = 290, w = 80, h = 100 }, { x = 190, y = 700, w = 80, h = 110 } }
 
 local BORDER_TOP, BORDER_RIGHT = 90, 1823
-local CROSS_LEVEL = 2
-local CROSS_MIN, CROSS_MAX = 6, 10
-local GRASS_MIN, GRASS_MAX = 3, 8
-local DOUBLE_CROSS_LEVEL, DOUBLE_CROSS_CHANCE = 4, 0.35
-local CROSS_SPAN = 2800
-local EDGE = 512
 local LEVEL_BASE, LEVEL_STEP = 8, 2
 local ZOOM_TIME = 2
 local START_DELAY = 2
 local OVERVIEW_H = 840
-local CAR_W, CAR_H = 300, 150
-local CAR_SPEED_MIN, CAR_SPEED_MAX = 420, 580
-local CAR_GAP_MIN, CAR_GAP_MAX = 1.3, 3.2
-local CAR_LANES = { { y = 365, dir = -1 }, { y = 650, dir = 1 } }
 
-local chunkImages = {}
-local crossImage
-local startImage
 local edgeQuad
-local carImages = {}
 local dogImages = {}
-local crossChunks = {}
-local lastCross = 0
-local grassChunks = {}
-local lastGrass = 0
-local dogChunks = {}
-local lastDog = 0
-local grassImage
-local layout = {}
 local van = {}
-local mask
 local border
 local borderShader
 local art = {}
@@ -95,67 +62,6 @@ local exitVoices = {}
 local HOUSE_CRASH_VOICES = { "house_crash" }
 local houseCrashVoices = {}
 
-local function crossAt(n)
-    while lastCross < n do
-        lastCross = lastCross + love.math.random(CROSS_MIN, CROSS_MAX)
-        crossChunks[lastCross] = true
-        if level >= DOUBLE_CROSS_LEVEL and love.math.random() < DOUBLE_CROSS_CHANCE then
-            lastCross = lastCross + 1
-            crossChunks[lastCross] = true
-        end
-    end
-    return crossChunks[n]
-end
-
-local function grassAt(n)
-    while lastGrass < n do
-        lastGrass = lastGrass + love.math.random(GRASS_MIN, GRASS_MAX)
-        grassChunks[lastGrass] = true
-    end
-    return grassChunks[n]
-end
-
-local function dogAt(n)
-    while lastDog < n do
-        lastDog = lastDog + love.math.random(DOG_GAP_MIN, DOG_GAP_MAX)
-        dogChunks[lastDog] = true
-    end
-    return dogChunks[n]
-end
-
-local function chunkAt(n)
-    if not layout[n] then
-        local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
-        local cross = level >= CROSS_LEVEL and crossAt(n)
-        local start = n == 0
-        local grass = not start and not cross and grassAt(n)
-        local c = { image = start and startImage or cross and crossImage or grass and grassImage or chunkImages[love.math.random(#chunkImages)], windows = {}, cross = cross, bare = start or cross or grass, delivered = false }
-        if start or grass then
-        elseif cross then
-            c.lanes = {}
-            for i, l in ipairs(CAR_LANES) do
-                local from, to = ox - EDGE - CAR_W, ox + CROSS_SPAN
-                if l.dir < 0 then from, to = to, from end
-                c.lanes[i] = { y = oy + l.y, dir = l.dir, from = from, to = to, speed = love.math.random(CAR_SPEED_MIN, CAR_SPEED_MAX), timer = love.math.random() * CAR_GAP_MIN, cars = {} }
-            end
-        else
-            c.door = { x = ox + DOOR.x, y = oy + DOOR.y, w = DOOR.w, h = DOOR.h, delivered = false }
-            for i, w in ipairs(WINDOWS) do
-                c.windows[i] = { x = ox + w.x, y = oy + w.y, w = w.w, h = w.h, left = ox + w.x - w.w / 2, right = ox + w.x + w.w / 2, broken = false }
-            end
-            if love.math.random() < MAILBOX_CHANCE then
-                c.mailbox = { x = ox + MAILBOX.x, y = oy + MAILBOX.y, w = MAILBOX.w, h = MAILBOX.h, down = false, delivered = false }
-            end
-            if level >= DOG_LEVEL and n < levelLen and dogAt(n) then
-                c.dog = dog.new(ox + DOG_REST.x, oy + DOG_REST.y, ox + DOG_REST.x, oy + DOG_REST.y)
-                c.dogHome = { x = ox + DOG_HOME.x, y = oy + DOG_HOME.y }
-            end
-        end
-        layout[n] = c
-    end
-    return layout[n]
-end
-
 local function play(name)
     local s = sounds[name]:clone()
     s:play()
@@ -169,66 +75,8 @@ local function drift(y)
     return DRIFT * -y / CHUNK_H
 end
 
-local function blocked(x, y)
-    local n = math.floor(-y / CHUNK_H)
-    local lx = math.floor(x - DRIFT * n)
-    local ly = math.floor(y + (n + 1) * CHUNK_H)
-    if n < 0 or lx < 0 then return true, false end
-    if lx >= HOUSE_W or chunkAt(n).bare then return false end
-    local r, g, b = mask:getPixel(lx, ly)
-    local lawn = g > 0.9 and r < 0.2 and b < 0.2
-    local pavement = math.abs(r - g) < 0.06 and math.abs(g - b) < 0.06 and r > 0.4 and r < 0.85
-    return not (lawn or pavement), true
-end
-
-local function vanBlocked(x, y)
-    local hit, house = blocked(x, y)
-    if hit then return true, house end
-    for i = 0, 7 do
-        local a = i * math.pi / 4
-        hit, house = blocked(x + VAN_RADIUS * math.cos(a), y + VAN_RADIUS * math.sin(a))
-        if hit then return true, house end
-    end
-    return false, false
-end
-
 local function inRect(px, py, left, top, right, bottom)
     return px >= left and px <= right and py >= top and py <= bottom
-end
-
-local function circleHitsMailbox(m, cx, cy, r)
-    local nx = math.max(m.x - m.w / 2, math.min(cx, m.x + m.w / 2))
-    local ny = math.max(m.y - m.h / 2, math.min(cy, m.y + m.h / 2))
-    return (cx - nx) ^ 2 + (cy - ny) ^ 2 <= r * r
-end
-
-local function updateCars(dt, vn)
-    for n = math.max(0, vn - 1), vn + 1 do
-        for _, lane in ipairs(chunkAt(n).lanes or {}) do
-            lane.timer = lane.timer - dt
-            if lane.timer <= 0 then
-                lane.timer = CAR_GAP_MIN + love.math.random() * (CAR_GAP_MAX - CAR_GAP_MIN)
-                lane.cars[#lane.cars + 1] = { x = lane.from, y = lane.y, w = CAR_W * 0.9, h = CAR_H * 0.7, image = carImages[love.math.random(#carImages)] }
-            end
-            for i = #lane.cars, 1, -1 do
-                local car = lane.cars[i]
-                car.x = car.x + lane.dir * lane.speed * dt
-                if (car.x - lane.to) * lane.dir >= 0 then table.remove(lane.cars, i) end
-            end
-        end
-    end
-end
-
-local function carHit(x, y)
-    local vn = math.floor(-y / CHUNK_H)
-    for n = math.max(0, vn - 1), vn + 1 do
-        for _, lane in ipairs(chunkAt(n).lanes or {}) do
-            for _, car in ipairs(lane.cars) do
-                if circleHitsMailbox(car, x, y, VAN_RADIUS) then return true end
-            end
-        end
-    end
-    return false
 end
 
 local function drawFit(img, cx, cy, w, h, rotation)
@@ -251,7 +99,7 @@ end
 local function levelStats()
     local st = { houses = 0, housesDone = 0, windows = 0, crushed = 0 }
     for n = 0, levelLen - 1 do
-        local c = chunkAt(n)
+        local c = world.chunkAt(n)
         if c.door then
             st.houses = st.houses + 1
             if c.delivered then st.housesDone = st.housesDone + 1 end
@@ -272,13 +120,7 @@ local function startLevel(n)
     level = n
     levelLen = LEVEL_BASE + LEVEL_STEP * n
     state = "play"
-    layout = {}
-    crossChunks = {}
-    grassChunks = {}
-    lastGrass = 0
-    lastCross = 0
-    dogChunks = {}
-    lastDog = 0
+    world.reset(n, levelLen)
     packages = {}
     ammo = levelAmmo()
     score = { delivered = 0, windows = 0, mailboxes = 0 }
@@ -451,8 +293,9 @@ local function hue(h)
 end
 
 function love.load()
+    local images = { chunks = {}, cars = {} }
     for i = 1, 4 do
-        chunkImages[i] = love.graphics.newImage("assets/chunk" .. i .. ".png")
+        images.chunks[i] = love.graphics.newImage("assets/chunk" .. i .. ".png")
     end
     edgeQuad = love.graphics.newQuad(-EDGE, 0, CHUNK_W + EDGE, CHUNK_H, CHUNK_W, CHUNK_H)
     for _, name in ipairs({ "car_startup", "hello", "how_gonna_get_mail", "my_leg", "my_window_1", "successful_package", "thank_you_1", "thatsmycar", "dogbark", "start1", "start2", "start3", "start4", "start5", "van_running", "watchwheregoing", "window_crash" }) do
@@ -484,11 +327,11 @@ function love.load()
     sounds.van_running:setLooping(true)
     sounds.van_running:setVolume(0.5)
     sounds.van_running:play()
-    crossImage = love.graphics.newImage("assets/chunkCross.png")
-    startImage = love.graphics.newImage("assets/chunk0.png")
-    grassImage = love.graphics.newImage("assets/chunkG1.png")
+    images.cross = love.graphics.newImage("assets/chunkCross.png")
+    images.start = love.graphics.newImage("assets/chunk0.png")
+    images.grass = love.graphics.newImage("assets/chunkG1.png")
     for i = 1, 4 do
-        carImages[i] = love.graphics.newImage(knockOutWhite("assets/car" .. i .. ".png"))
+        images.cars[i] = love.graphics.newImage(knockOutWhite("assets/car" .. i .. ".png"))
     end
     van.image = love.graphics.newImage("assets/van.png")
     for _, name in ipairs({ "dogsleep", "dogbark", "dogrun1", "dogrun2", "doghome" }) do
@@ -505,7 +348,7 @@ function love.load()
     border = love.graphics.newImage("assets/border.png")
     borderShader = love.graphics.newShader(BORDER_SHADER)
     borderShader:send("size", { border:getWidth(), border:getHeight() })
-    mask = love.image.newImageData("assets/chunk1.png")
+    world.init({ images = images, mask = love.image.newImageData("assets/chunk1.png"), random = love.math.random })
     love.graphics.setBackgroundColor(0.75, 0.75, 0.75)
     loadBoard()
     reset()
@@ -513,7 +356,7 @@ end
 
 function love.update(dt)
     if state == "exit" then
-        updateCars(dt, math.floor(-van.y / CHUNK_H))
+        world.updateCars(dt, math.floor(-van.y / CHUNK_H))
         van.angle = van.angle + (MAX_TILT - van.angle) * math.min(1, TILT_RATE * dt)
         van.x = van.x + EXIT_SPEED * dt + DRIFT * van.speed * dt / CHUNK_H
         van.y = van.y - van.speed * dt
@@ -537,7 +380,7 @@ function love.update(dt)
     end
     elapsed = elapsed + dt
     cooldown = math.max(0, cooldown - dt)
-    updateCars(dt, math.floor(-van.y / CHUNK_H))
+    world.updateCars(dt, math.floor(-van.y / CHUNK_H))
     van.slowT = math.max(0, (van.slowT or 0) - dt)
     local down = love.keyboard.isDown
     if down("up", "w") then
@@ -554,11 +397,11 @@ function love.update(dt)
     local ny = van.y - van.speed * dt
     local cx = cameraX(ny)
     nx = math.max(cx + MARGIN, math.min(cx + VIEW_W - MARGIN, nx))
-    local hitX = carHit(nx, van.y)
-    local blockedX, houseX = vanBlocked(nx, van.y)
+    local hitX = world.carHit(nx, van.y)
+    local blockedX, houseX = world.vanBlocked(nx, van.y)
     if not blockedX and not hitX then van.x = nx end
-    local hitY = carHit(van.x, ny)
-    local blockedY, houseY = vanBlocked(van.x, ny)
+    local hitY = world.carHit(van.x, ny)
+    local blockedY, houseY = world.vanBlocked(van.x, ny)
     if hitX or hitY then
         play("thatsmycar")
         finishLevel(true)
@@ -578,8 +421,8 @@ function love.update(dt)
 
     local vn = math.floor(-van.y / CHUNK_H)
     for n = math.max(0, vn - 1), vn + 1 do
-        local m = chunkAt(n).mailbox
-        if m and not m.down and circleHitsMailbox(m, van.x, van.y, VAN_RADIUS) then
+        local m = world.chunkAt(n).mailbox
+        if m and not m.down and world.circleHitsMailbox(m, van.x, van.y, VAN_RADIUS) then
             m.down = true
             play("watchwheregoing")
             score.mailboxes = score.mailboxes + 1
@@ -587,7 +430,7 @@ function love.update(dt)
     end
 
     local provoked = vanProvokesDog()
-    for n, c in pairs(layout) do
+    for n, c in pairs(world.layout()) do
         local d = c.dog
         local event = d and (math.abs(n - vn) <= 1 or d.state == "chase" or d.state == "home") and dog.update(d, dt, van.x, van.y, provoked)
         if event == "bark" then play("dogbark") end
@@ -605,7 +448,7 @@ function love.update(dt)
         local gone = pk.life <= 0
         local n = math.floor(-pk.y / CHUNK_H)
         if n >= 0 then
-            local c = chunkAt(n)
+            local c = world.chunkAt(n)
             for _, w in ipairs(c.windows) do
                 if not w.broken and inRect(pk.x, pk.y, w.left, w.y - w.h / 2, w.right, w.y + w.h / 2) then
                     w.broken = true
@@ -627,7 +470,7 @@ function love.update(dt)
                 gone = true
             end
             local m = c.mailbox
-            if m and not m.down and not m.delivered and circleHitsMailbox(m, pk.x, pk.y, PACKAGE_SIZE / 2) then
+            if m and not m.down and not m.delivered and world.circleHitsMailbox(m, pk.x, pk.y, PACKAGE_SIZE / 2) then
                 m.delivered = true
                 if not c.delivered then
                     c.delivered = true
@@ -692,7 +535,7 @@ function love.draw()
     local first = math.max(0, math.floor(-(camY + CHUNK_H / z) / CHUNK_H))
     for n = first, math.min(levelLen - 1, math.floor(-camY / CHUNK_H)) do
         love.graphics.setColor(1, 1, 1)
-        local c = chunkAt(n)
+        local c = world.chunkAt(n)
         love.graphics.draw(c.image, edgeQuad, DRIFT * n - EDGE, -(n + 1) * CHUNK_H)
         for _, win in ipairs(c.windows) do
             if win.broken then love.graphics.setColor(0.4, 0.4, 0.45) end
@@ -736,7 +579,7 @@ function love.draw()
         if c.dogHome then drawFit(dogImages.doghome, c.dogHome.x, c.dogHome.y, DOG_HOME_SIZE, DOG_HOME_SIZE) end
         if t > 0 then drawMarkers(c, 7 / z, t) end
     end
-    for _, c in pairs(layout) do
+    for _, c in pairs(world.layout()) do
         local d = c.dog
         if d then
             local frame = d.state == "bark" and "dogbark" or (d.state == "chase" or d.state == "home") and (math.floor(love.timer.getTime() * 10) % 2 == 0 and "dogrun1" or "dogrun2") or "dogsleep"

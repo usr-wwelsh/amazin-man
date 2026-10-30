@@ -18,6 +18,7 @@ jobs:
       - run: sudo apt-get install -y lua5.4
       - run: lua5.4 scoring_test.lua
       - run: lua5.4 dog_test.lua
+      - run: lua5.4 world_test.lua
 
   release:
     needs: test
