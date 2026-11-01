@@ -18,7 +18,7 @@ local function setup(level, len)
     world.init({
         random = lowest,
         mask = { getPixel = function() return pixel[1], pixel[2], pixel[3] end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(level, len)
 end
@@ -105,3 +105,56 @@ events = world.updateDogs(1 / 60, vx, vy, false)
 eq(events[1], "bite", "chasing dog bites when close")
 world.chunkAt(1).dog = dog.new(vx + 100, vy, vx + 100, vy)
 eq(#world.updateDogs(1 / 60, vx, vy + 1080 * 5, false), 0, "far dogs stay asleep")
+
+setup(world.OIL_LEVEL, 20)
+local spills = world.chunkAt(1).oil
+eq(#spills, 2, "oil spawns on a plain chunk at the oil level")
+eq(world.chunkAt(0).oil, nil, "start chunk has no oil")
+setup(math.max(world.OIL_LEVEL, 2), 20)
+eq(world.chunkAt(6).cross, true, "chunk 6 is a cross chunk")
+eq(world.chunkAt(6).oil, nil, "cross chunk has no oil")
+setup(world.OIL_LEVEL, 20)
+spills = world.chunkAt(1).oil
+eq(spills[1].image, "o2", "spill takes an oil image")
+if world.OIL_LEVEL > 1 then
+    setup(world.OIL_LEVEL - 1, 20)
+    eq(world.chunkAt(1).oil, nil, "no oil below the oil level")
+    setup(world.OIL_LEVEL, 20)
+    spills = world.chunkAt(1).oil
+end
+eq(world.oilAt(spills[1].x, spills[1].y), spills[1], "van on a spill is over oil")
+eq(world.oilAt(spills[1].x + 3000, spills[1].y), nil, "van away from spills is clear")
+
+local function real(a, b)
+    if not a then return math.random() end
+    if not b then return math.random(a) end
+    return math.random(a, b)
+end
+local minLx, maxLx = math.huge, -math.huge
+for seed = 1, 20 do
+    math.randomseed(seed)
+    world.init({
+        random = real,
+        mask = { getPixel = function() return 0, 1, 0 end },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
+    })
+    world.reset(8, 200)
+    for n = 0, 199 do
+        local c = world.chunkAt(n)
+        local list = c.oil or {}
+        for i, a in ipairs(list) do
+            local lx = a.x - world.DRIFT * n
+            minLx, maxLx = math.min(minLx, lx - a.r), math.max(maxLx, lx + a.r)
+            eq(a.r >= 140, true, "spills are big")
+            eq(a.y - a.r >= -(n + 1) * world.CHUNK_H and a.y + a.r <= -n * world.CHUNK_H, true, "spill stays inside its chunk")
+            eq(lx - a.r >= 1000, true, "spill stays right of the sidewalk's left edge")
+            eq(lx + a.r <= 2300, true, "spill stays on screen")
+            for j = i + 1, #list do
+                local b = list[j]
+                eq(math.abs(a.y - b.y) >= a.r + b.r, true, "spills in a chunk never share a row")
+            end
+        end
+    end
+end
+eq(minLx < 1300, true, "spills reach onto the sidewalk")
+eq(maxLx > 2200, true, "spills reach the right side of the screen")

@@ -35,7 +35,7 @@ function game.startLevel(n)
     game.exitComplete = false
     game.early = false
     game.levelPoints, game.levelGrade, game.levelBonus, game.levelStars = 0, "F", 0, 0
-    game.van = van.new(game.vanImage)
+    game.van = van.new(game.vanImage, game.oilVanImage)
 end
 
 function game.resetRun()

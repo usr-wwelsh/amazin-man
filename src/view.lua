@@ -83,6 +83,9 @@ local function drawChunk(n, t, z)
     love.graphics.setColor(1, 1, 1)
     local c = world.chunkAt(n)
     love.graphics.draw(c.image, edgeQuad, DRIFT * n - EDGE, -(n + 1) * CHUNK_H)
+    for _, spill in ipairs(c.oil or {}) do
+        drawFit(spill.image, spill.x, spill.y, spill.r * 2, spill.r * 2, spill.rot)
+    end
     for _, win in ipairs(c.windows) do
         if win.broken then love.graphics.setColor(0.4, 0.4, 0.45) end
         drawFit(art.window, win.x, win.y, win.w, win.h)
@@ -146,7 +149,14 @@ end
 local function drawVan()
     local van = game.van
     if van.slowT and van.slowT > 0 then love.graphics.setColor(1, 0.55, 0.55) end
-    if not van.gone then love.graphics.draw(van.image, van.x, van.y, van.angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2) end
+    if van.gone then return end
+    local angle = van.angle + (van.spin or 0)
+    love.graphics.draw(van.image, van.x, van.y, angle, VAN_SCALE, VAN_SCALE, van.image:getWidth() / 2, van.image:getHeight() / 2)
+    if (van.stain or 0) > 0 and van.oilImage then
+        love.graphics.setColor(1, 1, 1, van.stain)
+        love.graphics.draw(van.oilImage, van.x, van.y, angle, VAN_SCALE, VAN_SCALE, van.oilImage:getWidth() / 2, van.oilImage:getHeight() / 2)
+        love.graphics.setColor(1, 1, 1)
+    end
 end
 
 local function drawBorder()

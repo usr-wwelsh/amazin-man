@@ -35,7 +35,12 @@ function assets.load()
     for i = 1, 4 do
         a.world.cars[i] = love.graphics.newImage(knockOutWhite("assets/img/car" .. i .. ".png"))
     end
+    a.world.oil = {}
+    for i = 1, 4 do
+        a.world.oil[i] = love.graphics.newImage("assets/img/oil" .. i .. ".png")
+    end
     a.van = love.graphics.newImage("assets/img/van.png")
+    a.oilVan = love.graphics.newImage("assets/img/oilvan.png")
     for _, name in ipairs({ "dogsleep", "dogbark", "dogrun1", "dogrun2", "doghome" }) do
         a.dogs[name] = love.graphics.newImage(knockOutWhite("assets/img/" .. name .. ".png"))
     end

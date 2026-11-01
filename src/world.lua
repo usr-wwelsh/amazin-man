@@ -8,6 +8,7 @@ local world = {
     EDGE = 512,
     CAR_W = 300,
     CAR_H = 150,
+    OIL_LEVEL = 5,
 }
 
 local CHUNK_H, DRIFT, VAN_RADIUS, EDGE, CAR_W, CAR_H = world.CHUNK_H, world.DRIFT, world.VAN_RADIUS, world.EDGE, world.CAR_W, world.CAR_H
@@ -29,6 +30,13 @@ local CROSS_SPAN = 2800
 local CAR_SPEED_MIN, CAR_SPEED_MAX = 420, 580
 local CAR_GAP_MIN, CAR_GAP_MAX = 1.3, 3.2
 local CAR_LANES = { { y = 365, dir = -1 }, { y = 650, dir = 1 } }
+
+local OIL_CHANCE_BASE, OIL_CHANCE_STEP = 0.3, 0.1
+local OIL_R_MIN, OIL_R_MAX = 140, 240
+local SIDEWALK_LEFT = { top = 1430, bottom = 1030 }
+local OIL_RIGHT = 2300
+local OIL_ROWS = { { 0, CHUNK_H / 2 }, { CHUNK_H / 2, CHUNK_H } }
+local OIL_REACH = 40
 
 local images, mask, random
 local layout, crossChunks, grassChunks, dogChunks = {}, {}, {}, {}
@@ -77,6 +85,26 @@ local function dogAt(n)
     return dogChunks[n]
 end
 
+local function spillsFor(ox, oy)
+    local chance = math.min(1, OIL_CHANCE_BASE + OIL_CHANCE_STEP * (level - world.OIL_LEVEL))
+    local spills = {}
+    for _, row in ipairs(OIL_ROWS) do
+        if random() < chance then
+            local r = OIL_R_MIN + random() * (OIL_R_MAX - OIL_R_MIN)
+            local ly = row[1] + r + random() * (row[2] - row[1] - 2 * r)
+            local left = SIDEWALK_LEFT.top + (SIDEWALK_LEFT.bottom - SIDEWALK_LEFT.top) * ly / CHUNK_H + r
+            spills[#spills + 1] = {
+                x = ox + left + random() * (OIL_RIGHT - r - left),
+                y = oy + ly,
+                r = r,
+                rot = random() * 2 * math.pi,
+                image = images.oil[random(#images.oil)],
+            }
+        end
+    end
+    return spills
+end
+
 local function chunkAt(n)
     if not layout[n] then
         local ox, oy = DRIFT * n, -(n + 1) * CHUNK_H
@@ -84,6 +112,7 @@ local function chunkAt(n)
         local start = n == 0
         local grass = not start and not cross and grassAt(n)
         local c = { image = start and images.start or cross and images.cross or grass and images.grass or images.chunks[random(#images.chunks)], windows = {}, cross = cross, bare = start or cross or grass, delivered = false }
+        if level >= world.OIL_LEVEL and not start and not cross then c.oil = spillsFor(ox, oy) end
         if start or grass then
         elseif cross then
             c.lanes = {}
@@ -167,6 +196,16 @@ local function carHit(x, y)
     end
     return false
 end
+local function oilAt(x, y)
+    local vn = math.floor(-y / CHUNK_H)
+    for n = math.max(0, vn - 1), vn + 1 do
+        for _, spill in ipairs(chunkAt(n).oil or {}) do
+            if (x - spill.x) ^ 2 + (y - spill.y) ^ 2 <= (spill.r + OIL_REACH) ^ 2 then return spill end
+        end
+    end
+    return nil
+end
+world.oilAt = oilAt
 world.chunkAt = chunkAt
 world.blocked = blocked
 world.vanBlocked = vanBlocked

@@ -15,7 +15,7 @@ local function setup(level, len)
     world.init({
         random = function(a) return a or 0 end,
         mask = { getPixel = function() return pixel[1], pixel[2], pixel[3] end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(level, len)
 end
@@ -25,6 +25,8 @@ setup(1, 10)
 local v = van.new("img")
 eq(v.speed, van.MIN_SPEED, "van starts at minimum speed")
 eq(v.image, "img", "van keeps its image")
+local oiled = van.new("img", "oil")
+eq(oiled.oilImage, "oil", "van keeps its oily image")
 
 local startY = v.y
 eq(van.update(v, 0.1, 1, 0), nil, "clear road gives no crash")
@@ -77,3 +79,71 @@ eq(van.exitUpdate(v, 1 / 60), false, "van exiting is still on screen at first")
 v.x = 1e6
 eq(van.exitUpdate(v, 1 / 60), true, "van exiting leaves the screen")
 eq(v.gone, true, "gone van is flagged")
+
+setup(world.OIL_LEVEL, 20)
+local spill = world.chunkAt(1).oil[1]
+v = van.new()
+v.x, v.y = spill.x, spill.y
+local x1 = v.x
+van.update(v, 0.1, 0, 1)
+van.update(v, 0.1, 0, -1)
+eq(v.slipT > 0, true, "driving over oil starts a slip")
+eq(v.x > x1, true, "slipping van ignores steering and keeps sliding")
+
+v = van.new()
+v.x, v.y = spill.x, spill.y
+v.slipT = 0
+v.speed = van.MAX_SPEED
+for _ = 1, 3 do van.update(v, 0.1, 0, 0) end
+eq(v.x > spill.x, true, "unsteered van slides away from the spill center")
+v.x, v.y = spill.x + 3000, spill.y
+v.slipT = 0.05
+van.update(v, 0.1, 0, 1)
+eq(v.slipT, 0, "slip timer runs out off the oil")
+
+v = van.new()
+v.x, v.y = spill.x, spill.y
+eq(v.spin, 0, "van starts without spin")
+van.update(v, 0.1, 0, 0)
+eq(math.abs(v.spin - van.SPIN * 0.1 / van.SPIN_TIME) < 1e-9, true, "spin advances at a steady rate")
+eq(van.SPIN_TIME > van.SLIP_TIME, true, "the spin outlasts the slip")
+v.x, v.y = spill.x + 3000, spill.y
+for _ = 1, 8 do van.update(v, 0.1, 0, 0) end
+eq(v.slipT, 0, "slip is over before the spin")
+eq(v.spin > 0, true, "spin keeps going after the slip ends")
+for _ = 1, 10 do van.update(v, 0.1, 0, 0) end
+eq(v.spin, 0, "spin resets once it completes")
+
+v = van.new()
+v.x, v.y = spill.x, spill.y
+v.speed = van.MAX_SPEED
+van.update(v, 0.1, 1, 0)
+eq(v.speed, van.MAX_SPEED, "the van keeps its speed while sliding across oil")
+v.x, v.y = spill.x + 3000, spill.y
+local steps = 0
+repeat
+    van.update(v, 0.1, 1, 0)
+    steps = steps + 1
+until v.slipT == 0 or steps > 50
+eq(v.speed, van.OIL_SPEED, "the van crawls once the slide ends")
+for _ = 1, 25 do van.update(v, 0.1, 1, 0) end
+eq(v.speed > van.OIL_SPEED, true, "the van speeds up again after the crawl")
+
+v = van.new()
+eq(v.stain, 0, "a clean van has no stain")
+v.x, v.y = spill.x, spill.y
+van.update(v, 0.1, 0, 0)
+eq(v.stain, 1, "hitting oil stains the van")
+v.x, v.y = spill.x + 3000, spill.y
+local held = true
+for _ = 1, 40 do
+    van.update(v, 0.1, 0, 0)
+    if v.slipT > 0 or v.crawlT > 0 then held = held and v.stain == 1 end
+end
+eq(held, true, "the stain stays full through the slide and crawl")
+v.x, v.y = spill.x + 3000, spill.y
+v.stain, v.slipT, v.crawlT = 1, 0, 0
+van.update(v, 0.1, 0, 0)
+eq(v.stain < 1 and v.stain > 0, true, "the stain fades after the crawl")
+for _ = 1, 40 do van.update(v, 0.1, 0, 0) end
+eq(v.stain, 0, "the stain fades away completely")

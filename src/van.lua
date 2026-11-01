@@ -16,14 +16,39 @@ local van = {
     SLOW_TIME = 2.5,
     SLOW_SPEED = 256,
     START_Y = 540,
+    SLIP_TIME = 0.6,
+    OIL_SPEED = 60,
+    OIL_CRAWL_TIME = 1.5,
+    STAIN_FADE = 2,
+    SPIN_TIME = 1.2,
+    SPIN = 2 * math.pi,
 }
 
-function van.new(image)
-    return { x = 1550 + DRIFT * van.START_Y / CHUNK_H, y = -van.START_Y, speed = van.MIN_SPEED, angle = 0, slowT = 0, image = image }
+function van.new(image, oilImage)
+    return { x = 1550 + DRIFT * van.START_Y / CHUNK_H, y = -van.START_Y, speed = van.MIN_SPEED, angle = 0, slowT = 0, oilImage = oilImage, slipT = 0, crawlT = 0, stain = 0, spinT = 0, spin = 0, slipSteer = 0, image = image }
 end
 
 function van.update(v, dt, throttle, steer)
     v.slowT = math.max(0, v.slowT - dt)
+    local spill = world.oilAt(v.x, v.y)
+    if spill then
+        if v.slipT <= 0 then
+            v.spinT = van.SPIN_TIME
+            v.crawlT = 0
+            v.slipSteer = steer ~= 0 and steer or (v.x >= spill.x and 1 or -1)
+        end
+        v.slipT = van.SLIP_TIME
+        v.stain = 1
+    else
+        local sliding = v.slipT > 0
+        v.slipT = math.max(0, v.slipT - dt)
+        if sliding and v.slipT <= 0 then v.crawlT = van.OIL_CRAWL_TIME end
+    end
+    if v.slipT > 0 then steer = v.slipSteer end
+    if v.spinT > 0 then
+        v.spinT = math.max(0, v.spinT - dt)
+        v.spin = v.spinT > 0 and van.SPIN * (1 - v.spinT / van.SPIN_TIME) or 0
+    end
     if throttle > 0 then
         v.speed = math.min(van.MAX_SPEED, v.speed + van.ACCEL * dt)
     elseif throttle < 0 then
@@ -32,6 +57,12 @@ function van.update(v, dt, throttle, steer)
         v.speed = math.max(van.MIN_SPEED, v.speed - van.ACCEL * 0.3 * dt)
     end
     if v.slowT > 0 then v.speed = math.min(v.speed, van.SLOW_SPEED) end
+    if v.crawlT > 0 then
+        v.crawlT = math.max(0, v.crawlT - dt)
+        v.speed = math.min(v.speed, van.OIL_SPEED)
+    elseif v.slipT <= 0 then
+        v.stain = math.max(0, v.stain - dt / van.STAIN_FADE)
+    end
     v.angle = v.angle + (steer * van.MAX_TILT - v.angle) * math.min(1, van.TILT_RATE * dt)
     local nx = v.x + steer * van.STEER * dt + DRIFT * v.speed * dt / CHUNK_H
     local ny = v.y - v.speed * dt

@@ -8,6 +8,7 @@ local scene = require("src.scene")
 function love.load()
     local loaded = assets.load()
     game.vanImage = loaded.van
+    game.oilVanImage = loaded.oilVan
     view.load(loaded)
     audio.load()
     world.init({ images = loaded.world, mask = loaded.mask, random = love.math.random })

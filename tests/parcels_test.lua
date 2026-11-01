@@ -12,7 +12,7 @@ local function setup()
     world.init({
         random = function(a) return a or 0 end,
         mask = { getPixel = function() return 0, 1, 0 end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(1, 10)
 end
@@ -27,6 +27,12 @@ eq(thrown.x, 5, "parcel starts at the van x")
 eq(thrown.vx, -parcels.SPEED, "parcel flies toward the houses")
 eq(thrown.vy, -300, "parcel keeps the van's forward speed")
 eq(thrown.life, parcels.LIFE, "parcel starts with full life")
+
+local sideways = parcels.new({ x = 0, y = 0, speed = 300, spin = math.pi / 2 })
+eq(math.abs(sideways.vx) < 1e-9, true, "a van facing right throws straight ahead of the road")
+eq(math.abs(sideways.vy + 300 + parcels.SPEED) < 1e-9, true, "throw follows the facing direction")
+local backward = parcels.new({ x = 0, y = 0, speed = 300, spin = math.pi })
+eq(math.abs(backward.vx - parcels.SPEED) < 1e-9, true, "a van facing down the road throws to the right")
 
 local list = { { x = 0, y = -100, vx = 100, vy = -50, life = 1 } }
 eq(#parcels.update(list, 0.5), 0, "flying parcel in the open makes no events")

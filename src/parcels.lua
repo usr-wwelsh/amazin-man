@@ -12,7 +12,8 @@ local function inRect(px, py, left, top, right, bottom)
 end
 
 function parcels.new(v)
-    return { x = v.x, y = v.y, vx = -parcels.SPEED, vy = -v.speed, life = parcels.LIFE }
+    local a = v.spin or 0
+    return { x = v.x, y = v.y, vx = -parcels.SPEED * math.cos(a), vy = -v.speed - parcels.SPEED * math.sin(a), life = parcels.LIFE }
 end
 
 function parcels.update(list, dt)
