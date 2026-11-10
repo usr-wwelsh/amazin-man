@@ -14,7 +14,7 @@ function love.load()
     world.init({ images = loaded.world, mask = loaded.mask, random = love.math.random })
     love.graphics.setBackgroundColor(0.75, 0.75, 0.75)
     game.resetRun()
-    scene.go("play")
+    scene.go("intro")
 end
 
 function love.update(dt)
@@ -23,7 +23,7 @@ end
 
 function love.keypressed(key)
     if key == "escape" then love.event.quit() end
-    if key == "r" and scene.id ~= "name" then
+    if key == "r" and scene.id ~= "name" and scene.id ~= "intro" then
         game.resetRun()
         scene.go("play")
         return

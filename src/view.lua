@@ -188,12 +188,19 @@ function view.load(loaded)
     borderShader:send("size", { border:getWidth(), border:getHeight() })
 end
 
+local function fit(w, h)
+    local sx, sy = w / CHUNK_W, h / CHUNK_H
+    if math.abs(sx / sy - 1) < 0.01 then return 0, 0, sx, sy end
+    local scale = math.min(sx, sy)
+    return (w - CHUNK_W * scale) / 2, (h - CHUNK_H * scale) / 2, scale, scale
+end
+
 function view.frame(scene)
     local w, h = love.graphics.getDimensions()
-    local scale = math.min(w / CHUNK_W, h / CHUNK_H)
-    love.graphics.translate((w - CHUNK_W * scale) / 2, (h - CHUNK_H * scale) / 2)
-    love.graphics.scale(scale)
-    love.graphics.setScissor((w - CHUNK_W * scale) / 2, (h - CHUNK_H * scale) / 2, CHUNK_W * scale, CHUNK_H * scale)
+    local ox, oy, sx, sy = fit(w, h)
+    love.graphics.translate(ox, oy)
+    love.graphics.scale(sx, sy)
+    love.graphics.setScissor(math.floor(ox), math.floor(oy), math.ceil(CHUNK_W * sx), math.ceil(CHUNK_H * sy))
 
     local z, camX, camY, t = camera.view(game.van.y, game.levelLen, scene.overview and game.zoomT or nil)
     love.graphics.scale(z)
@@ -212,8 +219,8 @@ function view.frame(scene)
     drawVan()
 
     love.graphics.origin()
-    love.graphics.translate((w - CHUNK_W * scale) / 2, (h - CHUNK_H * scale) / 2)
-    love.graphics.scale(scale)
+    love.graphics.translate(ox, oy)
+    love.graphics.scale(sx, sy)
     drawBorder()
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(fonts.default)
