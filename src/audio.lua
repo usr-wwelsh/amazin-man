@@ -74,7 +74,6 @@ function audio.load()
     sounds.summary:setPitch(0.8)
     sounds.van_running:setLooping(true)
     sounds.van_running:setVolume(0.5)
-    sounds.van_running:play()
 end
 
 function audio.levelStart()
