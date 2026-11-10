@@ -5,6 +5,8 @@ local parcels = {
     LIFE = 2.2,
     SIZE = 72,
     COOLDOWN = 0.6,
+    WINDOW_X = -120,
+    WINDOW_Y = -135,
 }
 
 local function inRect(px, py, left, top, right, bottom)
@@ -13,7 +15,11 @@ end
 
 function parcels.new(v)
     local a = v.spin or 0
-    return { x = v.x, y = v.y, vx = -parcels.SPEED * math.cos(a), vy = -v.speed - parcels.SPEED * math.sin(a), life = parcels.LIFE }
+    local r = (v.angle or 0) + a
+    local c, s = math.cos(r), math.sin(r)
+    local x = v.x + parcels.WINDOW_X * c - parcels.WINDOW_Y * s
+    local y = v.y + parcels.WINDOW_X * s + parcels.WINDOW_Y * c
+    return { x = x, y = y, vx = -parcels.SPEED * math.cos(a), vy = -v.speed - parcels.SPEED * math.sin(a), life = parcels.LIFE }
 end
 
 function parcels.update(list, dt)

@@ -23,7 +23,9 @@ end
 
 setup()
 local thrown = parcels.new({ x = 5, y = -7, speed = 300 })
-eq(thrown.x, 5, "parcel starts at the van x")
+eq(thrown.x, 5 + parcels.WINDOW_X, "parcel leaves from the driver window side")
+eq(thrown.y, -7 + parcels.WINDOW_Y, "parcel leaves from the front of the van")
+eq(parcels.WINDOW_Y < 0, true, "driver window is toward the front")
 eq(thrown.vx, -parcels.SPEED, "parcel flies toward the houses")
 eq(thrown.vy, -300, "parcel keeps the van's forward speed")
 eq(thrown.life, parcels.LIFE, "parcel starts with full life")
@@ -33,6 +35,10 @@ eq(math.abs(sideways.vx) < 1e-9, true, "a van facing right throws straight ahead
 eq(math.abs(sideways.vy + 300 + parcels.SPEED) < 1e-9, true, "throw follows the facing direction")
 local backward = parcels.new({ x = 0, y = 0, speed = 300, spin = math.pi })
 eq(math.abs(backward.vx - parcels.SPEED) < 1e-9, true, "a van facing down the road throws to the right")
+
+local turned = parcels.new({ x = 0, y = 0, speed = 0, angle = math.pi / 2 })
+eq(math.abs(turned.x + parcels.WINDOW_Y) < 1e-9, true, "window offset rotates with the van")
+eq(math.abs(turned.y - parcels.WINDOW_X) < 1e-9, true, "window offset rotates with the van")
 
 local list = { { x = 0, y = -100, vx = 100, vy = -50, life = 1 } }
 eq(#parcels.update(list, 0.5), 0, "flying parcel in the open makes no events")
