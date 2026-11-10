@@ -59,6 +59,7 @@ function audio.load()
         end
     end
     sounds.dogbark:setVolume(0.3)
+    for _, name in ipairs(START_VOICES) do sounds[name]:setVolume(0.7) end
     sounds.ambience = love.audio.newSource("assets/sfx/ambience.ogg", "stream")
     sounds.ambience:setLooping(true)
     sounds.ambience:setVolume(0.5)
