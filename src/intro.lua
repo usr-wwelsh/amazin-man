@@ -1,17 +1,21 @@
 local intro = {}
 
-intro.SLIDES = {
-    { "YOUR GOAL" },
-    { "DELIVER PACKAGES", "TO DOORS", "OR MAILBOXES" },
-    { "SPACE TO THROW", "WASD TO MOVE" },
-}
+function intro.slides(throw, move)
+    return {
+        { "YOUR GOAL" },
+        { "DELIVER PACKAGES", "TO DOORS", "OR MAILBOXES" },
+        { throw .. " TO THROW", move .. " TO MOVE" },
+    }
+end
+
+intro.COUNT = 3
 
 function intro.new()
     return { index = 1 }
 end
 
 function intro.done(s)
-    return s.index > #intro.SLIDES
+    return s.index > intro.COUNT
 end
 
 function intro.advance(s)

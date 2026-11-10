@@ -4,6 +4,7 @@ local game = require("src.game")
 local leaderboard = require("src.leaderboard")
 local view = require("src.view")
 local scene = require("src.scene")
+local pad = require("src.pad")
 
 local name = { overview = true }
 
@@ -41,7 +42,7 @@ function name.draw()
     end
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(fonts.body)
-    love.graphics.printf("w/s letter - a/d move - space confirm", 0, 640, width, "center")
+    love.graphics.printf(pad.connected() and "up/down letter - left/right move - a confirm" or "w/s letter - a/d move - space confirm", 0, 640, width, "center")
     love.graphics.setFont(fonts.default)
 end
 

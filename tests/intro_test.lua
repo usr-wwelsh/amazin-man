@@ -21,4 +21,9 @@ eq(intro.done(s), false, "last slide waits for input")
 intro.advance(s)
 eq(intro.done(s), true, "advancing past last slide finishes")
 intro.advance(s)
-eq(s.index, #intro.SLIDES + 1, "finished state is stable")
+eq(s.index, intro.COUNT + 1, "finished state is stable")
+
+local last = intro.slides("SPACE", "WASD")[3]
+eq(last[1], "SPACE TO THROW", "throw slide uses given label")
+eq(last[2], "WASD TO MOVE", "move slide uses given label")
+eq(#intro.slides("A", "LEFT STICK"), intro.COUNT, "slide count matches COUNT")

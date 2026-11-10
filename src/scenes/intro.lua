@@ -3,6 +3,7 @@ local game = require("src.game")
 local introState = require("src.intro")
 local view = require("src.view")
 local scene = require("src.scene")
+local pad = require("src.pad")
 
 local intro = { overview = false }
 local state
@@ -28,7 +29,7 @@ function intro.draw()
     local width, height = world.CHUNK_W, world.CHUNK_H
     love.graphics.setColor(0, 0, 0, 0.92)
     love.graphics.rectangle("fill", 0, 0, width, height)
-    local lines = introState.SLIDES[state.index]
+    local lines = introState.slides(pad.label("throw"), pad.label("move"))[state.index]
     local font = view.fonts.huge
     local lineH = font:getHeight()
     local y = (height - lineH * #lines) / 2
@@ -40,7 +41,7 @@ function intro.draw()
     local pulse = 0.35 + 0.35 * math.sin(love.timer.getTime() * 4)
     love.graphics.setColor(1, 1, 1, pulse)
     love.graphics.setFont(view.fonts.counter)
-    love.graphics.printf("press space", 0, y + #lines * lineH + 30, width, "center")
+    love.graphics.printf("press " .. string.lower(pad.label("throw")), 0, y + #lines * lineH + 30, width, "center")
     love.graphics.setFont(view.fonts.default)
     love.graphics.setColor(1, 1, 1)
 end

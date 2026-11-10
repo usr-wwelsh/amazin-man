@@ -3,6 +3,7 @@ local scoring = require("src.scoring")
 local game = require("src.game")
 local view = require("src.view")
 local scene = require("src.scene")
+local pad = require("src.pad")
 
 local summary = { overview = true }
 
@@ -57,7 +58,7 @@ function summary.draw()
     love.graphics.printf(game.levelGrade, 1100, 290, 700, "center")
     love.graphics.setFont(fonts.body)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(game.level >= game.RUN_LEVELS and "space - enter name" or "space - next level", 130, 650)
+    love.graphics.print(pad.label("throw"):lower() .. (game.level >= game.RUN_LEVELS and " - enter name" or " - next level"), 130, 650)
     love.graphics.setFont(fonts.default)
 end
 

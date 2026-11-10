@@ -2,6 +2,7 @@ local world = require("src.world")
 local game = require("src.game")
 local view = require("src.view")
 local scene = require("src.scene")
+local pad = require("src.pad")
 
 local board = { overview = true }
 
@@ -29,7 +30,7 @@ function board.draw()
         love.graphics.printf(tostring(e.score), 900, 230 + (i - 1) * 54, 300, "right")
     end
     love.graphics.setColor(1, 1, 1)
-    love.graphics.printf("space - new run", 0, 850, width, "center")
+    love.graphics.printf(pad.label("throw"):lower() .. " - new run", 0, 850, width, "center")
     love.graphics.setFont(fonts.default)
 end
 

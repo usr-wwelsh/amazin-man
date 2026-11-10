@@ -4,6 +4,8 @@ local game = require("src.game")
 local audio = require("src.audio")
 local view = require("src.view")
 local scene = require("src.scene")
+local pad = require("src.pad")
+local input = require("src.input")
 
 function love.load()
     local loaded = assets.load()
@@ -14,10 +16,22 @@ function love.load()
     world.init({ images = loaded.world, mask = loaded.mask, random = love.math.random })
     love.graphics.setBackgroundColor(0.75, 0.75, 0.75)
     game.resetRun()
+    love.mouse.setVisible(false)
+    pad.refresh()
     scene.go("intro")
 end
 
+function love.joystickadded() pad.refresh() end
+
+function love.joystickremoved() pad.refresh() end
+
+function love.gamepadpressed(_, button)
+    local key = input.button(button)
+    if key then love.keypressed(key) end
+end
+
 function love.update(dt)
+    for _, key in ipairs(pad.stickKeys()) do love.keypressed(key) end
     scene.current.update(dt)
 end
 

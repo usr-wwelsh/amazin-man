@@ -5,6 +5,7 @@ local parcels = require("src.parcels")
 local audio = require("src.audio")
 local view = require("src.view")
 local scene = require("src.scene")
+local pad = require("src.pad")
 
 local play = {}
 
@@ -26,9 +27,7 @@ function play.update(dt)
     game.elapsed = game.elapsed + dt
     game.cooldown = math.max(0, game.cooldown - dt)
     world.updateCars(dt, math.floor(-v.y / world.CHUNK_H))
-    local down = love.keyboard.isDown
-    local throttle = down("up", "w") and 1 or down("down", "s") and -1 or 0
-    local steer = (down("right", "d") and 1 or 0) - (down("left", "a") and 1 or 0)
+    local throttle, steer = pad.drive()
     local crash = van.update(v, dt, throttle, steer)
     if crash then
         audio.event(crash)
