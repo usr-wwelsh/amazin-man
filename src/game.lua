@@ -44,7 +44,7 @@ function game.resetRun()
 end
 
 function game.throw()
-    if game.cooldown > 0 or game.ammo <= 0 then return false end
+    if game.startDelay > 0 or game.cooldown > 0 or game.ammo <= 0 then return false end
     game.cooldown = parcels.COOLDOWN
     game.ammo = game.ammo - 1
     game.packages[#game.packages + 1] = parcels.new(game.van)

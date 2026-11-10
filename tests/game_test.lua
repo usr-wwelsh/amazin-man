@@ -29,6 +29,9 @@ eq(game.levelLen, 24, "level eight is longer")
 eq(game.ammo, math.max(world.stats().houses, game.AMMO_START + 1 - 8), "late levels give a package per house")
 
 game.startLevel(1)
+eq(game.throw(), false, "van cannot throw while frozen at the start")
+eq(game.ammo, game.AMMO_START, "frozen throw spends nothing")
+game.startDelay = 0
 eq(game.throw(), true, "van throws a package")
 eq(game.ammo, game.AMMO_START - 1, "throwing spends ammo")
 eq(#game.packages, 1, "thrown package is in flight")
