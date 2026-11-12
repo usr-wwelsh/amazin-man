@@ -18,7 +18,7 @@ local function setup(level, len)
     world.init({
         random = lowest,
         mask = { getPixel = function() return pixel[1], pixel[2], pixel[3] end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = { "grass" }, cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(level, len)
 end
@@ -136,7 +136,7 @@ for seed = 1, 20 do
     world.init({
         random = real,
         mask = { getPixel = function() return 0, 1, 0 end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = { "grass" }, cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(8, 200)
     for n = 0, 199 do
@@ -158,3 +158,62 @@ for seed = 1, 20 do
 end
 eq(minLx < 1300, true, "spills reach onto the sidewalk")
 eq(maxLx > 2200, true, "spills reach the right side of the screen")
+
+local function specials()
+    world.init({
+        random = lowest,
+        mask = { getPixel = function() return 0, 1, 0 end },
+        images = { chunks = { "house" }, abandoned = "abandoned", lot = "lot", cross = "cross", start = "start", grass = { "grass" }, cars = { "car" }, oil = { "o1", "o2" } },
+    })
+    world.reset(1, 30)
+end
+
+specials()
+local ruin = world.chunkAt(4)
+eq(ruin.image, "abandoned", "abandoned chunk appears")
+eq(ruin.door, nil, "abandoned house has no door")
+eq(#ruin.windows, 0, "abandoned house has no windows")
+eq(ruin.mailbox, nil, "abandoned house has no mailbox")
+local rx, ry = world.DRIFT * 4 + 300, -5 * world.CHUNK_H + 500
+local wall, isHouse = world.blocked(rx, ry)
+eq(wall, true, "abandoned house wall blocks")
+eq(isHouse, true, "abandoned house wall reports a house")
+eq(world.blocked(world.DRIFT * 4 + 700, ry), false, "lawn beside abandoned house is drivable")
+local doors = 0
+for n = 0, 29 do
+    if world.chunkAt(n).door then doors = doors + 1 end
+end
+eq(world.stats().houses, doors, "abandoned houses are not counted as deliveries")
+
+local lot = world.chunkAt(5)
+eq(lot.image, "lot", "lot chunk appears")
+eq(lot.door, nil, "lot has no door")
+eq(lot.leftGrass, true, "lot extends to grass past the left edge")
+eq(world.chunkAt(4).leftGrass, nil, "other chunks keep their edge")
+eq(#lot.parked > 0, true, "lot has parked cars")
+local parked = lot.parked[1]
+eq(world.carHit(parked.x, parked.y), true, "van touching a parked car crashes")
+eq(world.carHit(parked.x + 5000, parked.y), false, "van away from parked cars is clear")
+eq(world.blocked(world.DRIFT * 5 + 400, -6 * world.CHUNK_H + 540), false, "lot pavement is drivable")
+
+local seen = {}
+for seed = 1, 30 do
+    math.randomseed(seed)
+    world.init({
+        random = real,
+        mask = { getPixel = function() return 0, 1, 0 end },
+        images = { chunks = { "house" }, abandoned = "abandoned", lot = "lot", cross = "cross", start = "start", grass = { "grass" }, cars = { "car" }, oil = { "o1", "o2" } },
+    })
+    world.reset(1, 60)
+    for n = 0, 59 do
+        local c = world.chunkAt(n)
+        for i, p in ipairs(c.parked or {}) do
+            seen[#seen + 1] = p.x - world.DRIFT * n
+            for j = i + 1, #c.parked do
+                local q = c.parked[j]
+                eq(math.abs(p.x - q.x) > 50 or math.abs(p.y - q.y) > 50, true, "parked cars never overlap")
+            end
+        end
+    end
+end
+eq(#seen > 0, true, "random lots park some cars")

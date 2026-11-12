@@ -12,7 +12,7 @@ local function setup()
     world.init({
         random = function(a) return a or 0 end,
         mask = { getPixel = function() return 0, 1, 0 end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = { "grass" }, cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(1, 10)
 end

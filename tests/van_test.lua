@@ -15,7 +15,7 @@ local function setup(level, len)
     world.init({
         random = function(a) return a or 0 end,
         mask = { getPixel = function() return pixel[1], pixel[2], pixel[3] end },
-        images = { chunks = { "house" }, cross = "cross", start = "start", grass = "grass", cars = { "car" }, oil = { "o1", "o2" } },
+        images = { chunks = { "house" }, cross = "cross", start = "start", grass = { "grass" }, cars = { "car" }, oil = { "o1", "o2" } },
     })
     world.reset(level, len)
 end

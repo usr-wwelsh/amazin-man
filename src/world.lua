@@ -9,6 +9,8 @@ local world = {
     CAR_W = 300,
     CAR_H = 150,
     OIL_LEVEL = 5,
+    PARK_W = 240,
+    PARK_H = 120,
 }
 
 local CHUNK_H, DRIFT, VAN_RADIUS, EDGE, CAR_W, CAR_H = world.CHUNK_H, world.DRIFT, world.VAN_RADIUS, world.EDGE, world.CAR_W, world.CAR_H
@@ -24,6 +26,15 @@ local WINDOWS = { { x = 480, y = 290, w = 80, h = 100 }, { x = 190, y = 700, w =
 local CROSS_LEVEL = 2
 local CROSS_MIN, CROSS_MAX = 6, 10
 local GRASS_MIN, GRASS_MAX = 3, 8
+local RUIN_MIN, RUIN_MAX = 4, 9
+local LOT_MIN, LOT_MAX = 5, 10
+local RUIN_SOLID = { x = 0, y = 205, w = 575, h = 635 }
+local PARK_CHANCE = 0.55
+local PARK_W, PARK_H = world.PARK_W, world.PARK_H
+local PARK_SPOTS = {
+    { x = 105, y = 215, rot = -math.pi / 2 }, { x = 280, y = 215, rot = -math.pi / 2 }, { x = 440, y = 215, rot = -math.pi / 2 }, { x = 600, y = 215, rot = -math.pi / 2 }, { x = 795, y = 215, rot = -math.pi / 2 },
+    { x = 140, y = 755, rot = math.pi / 2 }, { x = 310, y = 755, rot = math.pi / 2 }, { x = 485, y = 755, rot = math.pi / 2 }, { x = 665, y = 755, rot = math.pi / 2 },
+}
 local DOUBLE_CROSS_LEVEL, DOUBLE_CROSS_CHANCE = 4, 0.35
 local SIDEWALK_RIGHT = { top = 1620, bottom = 1250 }
 local CROSS_SPAN = 2800
@@ -39,8 +50,8 @@ local OIL_ROWS = { { 0, CHUNK_H / 2 }, { CHUNK_H / 2, CHUNK_H } }
 local OIL_REACH = 40
 
 local images, mask, random
-local layout, crossChunks, grassChunks, dogChunks = {}, {}, {}, {}
-local lastCross, lastGrass, lastDog = 0, 0, 0
+local layout, crossChunks, grassChunks, dogChunks, ruinChunks, lotChunks = {}, {}, {}, {}, {}, {}
+local lastCross, lastGrass, lastDog, lastRuin, lastLot = 0, 0, 0, 0, 0
 local level, levelLen = 1, 10
 
 function world.init(cfg)
@@ -49,8 +60,8 @@ end
 
 function world.reset(n, len)
     level, levelLen = n, len
-    layout, crossChunks, grassChunks, dogChunks = {}, {}, {}, {}
-    lastCross, lastGrass, lastDog = 0, 0, 0
+    layout, crossChunks, grassChunks, dogChunks, ruinChunks, lotChunks = {}, {}, {}, {}, {}, {}
+    lastCross, lastGrass, lastDog, lastRuin, lastLot = 0, 0, 0, 0, 0
 end
 
 function world.layout()
@@ -75,6 +86,32 @@ local function grassAt(n)
         grassChunks[lastGrass] = true
     end
     return grassChunks[n]
+end
+
+local function ruinAt(n)
+    while lastRuin < n do
+        lastRuin = lastRuin + random(RUIN_MIN, RUIN_MAX)
+        ruinChunks[lastRuin] = true
+    end
+    return ruinChunks[n]
+end
+
+local function lotAt(n)
+    while lastLot < n do
+        lastLot = lastLot + random(LOT_MIN, LOT_MAX)
+        lotChunks[lastLot] = true
+    end
+    return lotChunks[n]
+end
+
+local function parkedFor(ox, oy)
+    local parked = {}
+    for _, spot in ipairs(PARK_SPOTS) do
+        if random() < PARK_CHANCE then
+            parked[#parked + 1] = { x = ox + spot.x, y = oy + spot.y, w = PARK_H * 0.9, h = PARK_W * 0.9, rot = spot.rot + (random() - 0.5) * 0.1, image = images.cars[random(#images.cars)] }
+        end
+    end
+    return parked
 end
 
 local function dogAt(n)
@@ -111,9 +148,13 @@ local function chunkAt(n)
         local cross = level >= CROSS_LEVEL and crossAt(n)
         local start = n == 0
         local grass = not start and not cross and grassAt(n)
-        local c = { image = start and images.start or cross and images.cross or grass and images.grass or images.chunks[random(#images.chunks)], windows = {}, cross = cross, bare = start or cross or grass, delivered = false }
+        local lot = images.lot and not start and not cross and not grass and lotAt(n)
+        local ruin = images.abandoned and not start and not cross and not grass and not lot and ruinAt(n)
+        local c = { image = start and images.start or cross and images.cross or grass and images.grass[random(#images.grass)] or lot and images.lot or ruin and images.abandoned or images.chunks[random(#images.chunks)], windows = {}, cross = cross, bare = start or cross or grass or lot, delivered = false }
+        if ruin then c.solid = { x = ox + RUIN_SOLID.x, y = oy + RUIN_SOLID.y, w = RUIN_SOLID.w, h = RUIN_SOLID.h } end
+        if lot then c.parked = parkedFor(ox, oy) c.leftGrass = true end
         if level >= world.OIL_LEVEL and not start and not cross then c.oil = spillsFor(ox, oy) end
-        if start or grass then
+        if start or grass or lot or ruin then
         elseif cross then
             c.lanes = {}
             for i, l in ipairs(CAR_LANES) do
@@ -144,7 +185,12 @@ local function blocked(x, y)
     local lx = math.floor(x - DRIFT * n)
     local ly = math.floor(y + (n + 1) * CHUNK_H)
     if n < 0 or lx < 0 then return true, false end
-    if lx >= HOUSE_W or chunkAt(n).bare then return false end
+    local c = chunkAt(n)
+    if c.solid then
+        local s = c.solid
+        return x >= s.x and x <= s.x + s.w and y >= s.y and y <= s.y + s.h, true
+    end
+    if lx >= HOUSE_W or c.bare then return false end
     local r, g, b = mask:getPixel(lx, ly)
     local lawn = g > 0.9 and r < 0.2 and b < 0.2
     local pavement = math.abs(r - g) < 0.06 and math.abs(g - b) < 0.06 and r > 0.4 and r < 0.85
@@ -192,6 +238,9 @@ local function carHit(x, y)
             for _, car in ipairs(lane.cars) do
                 if circleHitsMailbox(car, x, y, VAN_RADIUS) then return true end
             end
+        end
+        for _, car in ipairs(chunkAt(n).parked or {}) do
+            if circleHitsMailbox(car, x, y, VAN_RADIUS) then return true end
         end
     end
     return false

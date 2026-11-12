@@ -26,12 +26,17 @@ end
 
 function assets.load()
     local a = { world = { chunks = {}, cars = {} }, dogs = {}, art = {}, fonts = {} }
-    for i = 1, 4 do
+    for i = 1, 5 do
         a.world.chunks[i] = love.graphics.newImage("assets/img/chunk" .. i .. ".png")
     end
+    a.world.abandoned = love.graphics.newImage("assets/img/chunk6.png")
+    a.world.lot = love.graphics.newImage("assets/img/chunklot.png")
     a.world.cross = love.graphics.newImage("assets/img/chunkCross.png")
     a.world.start = love.graphics.newImage("assets/img/chunk0.png")
-    a.world.grass = love.graphics.newImage("assets/img/chunkG1.png")
+    a.world.grass = {}
+    for i = 1, 3 do
+        a.world.grass[i] = love.graphics.newImage("assets/img/chunkG" .. i .. ".png")
+    end
     for i = 1, 4 do
         a.world.cars[i] = love.graphics.newImage(knockOutWhite("assets/img/car" .. i .. ".png"))
     end

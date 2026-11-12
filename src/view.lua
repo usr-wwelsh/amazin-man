@@ -9,7 +9,7 @@ local DOG_SIZE, DOG_HOME_SIZE = 200, 240
 local BORDER_TOP, BORDER_RIGHT = 90, 1823
 
 local view = {}
-local edgeQuad, dogImages, art, fonts, border, borderShader
+local edgeQuad, dogImages, art, fonts, border, borderShader, seamShader
 
 local BORDER_SHADER = [[
 extern number time;
@@ -27,6 +27,45 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
     return vec4(hue(fract(time * 0.15)) * ink, t.a) * color;
 }
 ]]
+
+local SEAM_SHADER = [[
+extern Image above;
+extern Image below;
+extern vec2 size;
+extern number shiftAbove;
+extern number shiftBelow;
+extern number band;
+extern number hasBelow;
+extern number leftGrass;
+float grassy(vec4 c) {
+    float grass = clamp((c.g - max(c.r, c.b) - 0.05) / 0.1, 0.0, 1.0);
+    float sand = clamp((min(c.r, c.g) - 0.75) / 0.05, 0.0, 1.0) * clamp((c.b - 0.5) / 0.1, 0.0, 1.0) * clamp((0.92 - c.b) / 0.05, 0.0, 1.0);
+    return max(grass, sand);
+}
+float noise(vec2 p) {
+    vec2 cell = floor(p / 5.0);
+    return fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+}
+vec4 blend(vec4 t, vec4 other, float w, vec2 p) {
+    return w * grassy(t) * grassy(other) > noise(p) ? other : t;
+}
+vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
+    vec4 t = Texel(tex, uv);
+    float x = uv.x * size.x;
+    float y = uv.y * size.y;
+    if (leftGrass > 0.5) {
+        vec4 lawn = Texel(tex, vec2(1000.0, 20.0) / size);
+        if (x < 0.0) return lawn * color;
+        if (clamp(1.0 - x / 70.0, 0.0, 1.0) > noise(vec2(x, y))) t = lawn;
+    }
+    float up = clamp(1.0 - y / band, 0.0, 1.0);
+    float down = hasBelow * clamp(1.0 - (size.y - y) / band, 0.0, 1.0);
+    t = blend(t, Texel(above, vec2((x - shiftAbove) / size.x, 1.0 - 0.5 / size.y)), 0.5 * up * up * (3.0 - 2.0 * up), vec2(x, y));
+    t = blend(t, Texel(below, vec2((x - shiftBelow) / size.x, 0.5 / size.y)), 0.5 * down * down * (3.0 - 2.0 * down), vec2(x, y));
+    return t * color;
+}
+]]
+local SEAM_BAND = 80
 
 local function drawFit(img, cx, cy, w, h, rotation)
     love.graphics.draw(img, cx, cy, rotation or 0, w / img:getWidth(), h / img:getHeight(), img:getWidth() / 2, img:getHeight() / 2)
@@ -82,7 +121,14 @@ end
 local function drawChunk(n, t, z)
     love.graphics.setColor(1, 1, 1)
     local c = world.chunkAt(n)
+    local above, below = world.chunkAt(n + 1).image, world.chunkAt(math.max(0, n - 1)).image
+    seamShader:send("above", above)
+    seamShader:send("below", below)
+    seamShader:send("hasBelow", n > 0 and 1 or 0)
+    seamShader:send("leftGrass", c.leftGrass and 1 or 0)
+    love.graphics.setShader(seamShader)
     love.graphics.draw(c.image, edgeQuad, DRIFT * n - EDGE, -(n + 1) * CHUNK_H)
+    love.graphics.setShader()
     for _, spill in ipairs(c.oil or {}) do
         drawFit(spill.image, spill.x, spill.y, spill.r * 2, spill.r * 2, spill.rot)
     end
@@ -104,6 +150,9 @@ local function drawChunk(n, t, z)
                 drawFit(car.image, car.x, car.y, CAR_W * lane.dir, CAR_H)
             end
         end
+    end
+    for _, car in ipairs(c.parked or {}) do
+        drawFit(car.image, car.x, car.y, world.PARK_W, world.PARK_H, car.rot)
     end
     local d = c.door
     if d and d.delivered then
@@ -183,6 +232,11 @@ function view.load(loaded)
     dogImages, art, fonts = loaded.dogs, loaded.art, loaded.fonts
     view.fonts = fonts
     edgeQuad = love.graphics.newQuad(-EDGE, 0, CHUNK_W + EDGE, CHUNK_H, CHUNK_W, CHUNK_H)
+    seamShader = love.graphics.newShader(SEAM_SHADER)
+    seamShader:send("size", { CHUNK_W, CHUNK_H })
+    seamShader:send("shiftAbove", DRIFT)
+    seamShader:send("shiftBelow", -DRIFT)
+    seamShader:send("band", SEAM_BAND)
     border = love.graphics.newImage("assets/img/border.png")
     borderShader = love.graphics.newShader(BORDER_SHADER)
     borderShader:send("size", { border:getWidth(), border:getHeight() })
