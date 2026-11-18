@@ -58,6 +58,7 @@ function assets.load()
     a.fonts.counter = love.graphics.newFont(40)
     a.fonts.grade = love.graphics.newFont(300)
     a.fonts.huge = love.graphics.newFont(150)
+    a.fonts.attract = love.graphics.newFont(230)
     a.mask = love.image.newImageData("assets/img/chunk1.png")
     return a
 end

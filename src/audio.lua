@@ -86,6 +86,18 @@ function audio.levelStart()
     if not sounds.van_running:isPlaying() then sounds.van_running:play() end
 end
 
+function audio.silence()
+    sounds.van_running:pause()
+    sounds.summary:stop()
+    sounds.theme:play()
+    sounds.ambience:pause()
+end
+
+function audio.resume()
+    sounds.theme:play()
+    sounds.ambience:play()
+end
+
 function audio.levelEnd(early)
     sounds.van_running:pause()
     sounds.theme:pause()
