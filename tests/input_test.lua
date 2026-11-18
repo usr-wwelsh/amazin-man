@@ -64,3 +64,5 @@ eq(input.label("throw", false), "SPACE", "keyboard throw label")
 eq(input.label("throw", true), "A", "pad throw label")
 eq(input.label("move", false), "WASD", "keyboard move label")
 eq(input.label("move", true), "LEFT STICK", "pad move label")
+
+eq(input.button("start"), "start", "start opens the restart prompt")

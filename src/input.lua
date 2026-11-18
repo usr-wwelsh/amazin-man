@@ -10,6 +10,7 @@ local LABELS = {
 
 local BUTTONS = {
     a = "space",
+    start = "start",
     dpadup = "up",
     dpaddown = "down",
     dpadleft = "left",

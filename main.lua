@@ -37,7 +37,11 @@ end
 
 function love.keypressed(key)
     if key == "escape" then love.event.quit() end
-    if key == "r" and scene.id ~= "name" and scene.id ~= "intro" then
+    if key == "start" and scene.id ~= "name" and scene.id ~= "intro" and scene.id ~= "restart" then
+        scene.push("restart")
+        return
+    end
+    if key == "r" and scene.id ~= "name" and scene.id ~= "intro" and scene.id ~= "restart" then
         game.resetRun()
         scene.go("play")
         return
