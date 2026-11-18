@@ -4,6 +4,7 @@ local introState = require("src.intro")
 local view = require("src.view")
 local scene = require("src.scene")
 local pad = require("src.pad")
+local audio = require("src.audio")
 
 local intro = { overview = false }
 local state
@@ -15,6 +16,7 @@ end
 
 function intro.enter()
     state = introState.new()
+    audio.resume()
 end
 
 function intro.update() end
